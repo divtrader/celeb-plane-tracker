@@ -69,7 +69,10 @@ setInterval(tickMissionTime, 1000);
 // Pull-tab collapse: slides the panel off-screen so the user sees the
 // whole map. The tab parks at the viewport's right edge while collapsed
 // so it can be pulled back. State persists in localStorage.
-const PANEL_COLLAPSED_KEY = "celeb-tracker.panelCollapsed";
+// Key bumped to -v2 — discards any stored "0" from the previous layout
+// when the panel was open by default. Now everyone starts collapsed
+// regardless of their saved preference from the old layout.
+const PANEL_COLLAPSED_KEY = "celeb-tracker.panelCollapsed-v2";
 function applyPanelState(collapsed) {
   document.body.classList.toggle("panel-collapsed", collapsed);
   // Use `right` only — setting BOTH right and transform earlier was
@@ -983,17 +986,31 @@ async function tryWakeLock() {
   }
 }
 
-// Polling and map rendering run immediately on page load — no gesture needed.
-// The Start button is only for unlocking Web Audio + speech, which browsers
-// require to be initiated by a user click.
+// Polling + map render run immediately. Audio (speech + WebAudio
+// chimes) needs a user gesture, but it doesn't have to be a button —
+// any first click / touch / keypress satisfies the browser. So we
+// hide the button entirely and auto-unlock on the first interaction,
+// whatever it is. The button stays in the DOM as an a11y fallback.
 function enableAudio() {
   els.startBtn.classList.add("hidden");
   voice.unlock();
   chime.unlock();
   tryWakeLock();
 }
-
+els.startBtn.classList.add("hidden");
 els.startBtn.addEventListener("click", enableAudio);
+
+let audioUnlocked = false;
+function autoUnlockAudio() {
+  if (audioUnlocked) return;
+  audioUnlocked = true;
+  enableAudio();
+}
+// Capture-phase listeners so we catch the very first user gesture
+// anywhere on the page, not just a button click.
+window.addEventListener("pointerdown", autoUnlockAudio, { once: true, capture: true });
+window.addEventListener("keydown",     autoUnlockAudio, { once: true, capture: true });
+window.addEventListener("touchstart",  autoUnlockAudio, { once: true, capture: true, passive: true });
 els.trackedCount.textContent = String(CELEBRITY_TAILS.length);
 setStatus("loading", "Starting…");
 renderPanel(); // initial render — every tail starts as "no signal"
