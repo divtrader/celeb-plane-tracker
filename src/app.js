@@ -1,5 +1,6 @@
 import { CELEBRITY_TAILS } from "./tails.js";
 import { AirplanesLiveAdapter } from "./adsb/airplaneslive.js";
+import { MockAdapter, MOCK_ROUTES } from "./adsb/mock.js";
 import { AMSTERDAM_ZONE, GeofenceTracker } from "./geofence.js";
 import { FlightStateTracker } from "./flightState.js";
 import { loadAirports, nearestAirport } from "./airports.js";
@@ -7,19 +8,29 @@ import { lookupRoute, computeProgress } from "./routes.js";
 import { Voice } from "./voice.js";
 import { Chime } from "./chime.js";
 
-const POLL_INTERVAL_MS = 60_000;
+// Demo mode (?demo=1) swaps to a local MockAdapter with no rate limits.
+const DEMO_MODE = new URLSearchParams(window.location.search).has("demo");
+
+const POLL_INTERVAL_MS = DEMO_MODE ? 4_000 : 60_000;
 // airplanes.live rate-limits at ~1 request/second with a small burst bucket.
 // 1500ms spacing gives a margin against bursts; 56 tails × 1.5s = 84s per
 // sweep. Combined with self-chained pollLoop, sweeps never overlap and the
 // long-term steady-state stays well under the rate limit.
-const REQUEST_SPACING_MS = 1500;
+const REQUEST_SPACING_MS = DEMO_MODE ? 0 : 1500;
 
 const EUROPE_CENTER = [50.5, 8.0];
 const EUROPE_ZOOM = 5;
 
-const adsb = new AirplanesLiveAdapter();
+const adsb = DEMO_MODE ? new MockAdapter() : new AirplanesLiveAdapter();
 const voice = new Voice();
 const chime = new Chime();
+
+// Demo mode is faster than reality and needs deterministic route data,
+// so we don't burn real adsbdb requests on mock callsigns.
+const routeFor = DEMO_MODE
+  ? (callsign) => Promise.resolve(MOCK_ROUTES[callsign?.trim().toUpperCase()] ?? null)
+  : lookupRoute;
+if (DEMO_MODE) console.log("[demo] scripted scenario active — real ADS-B fetch disabled");
 const tailsByReg = new Map(CELEBRITY_TAILS.map((t) => [t.reg.toUpperCase(), t]));
 
 const els = {
@@ -450,7 +461,7 @@ async function pollOnce() {
           // when the route is found. Reset to undefined on landing/no-signal
           // so the next flight gets a fresh lookup.
           if (state.route === undefined && ac.flight) {
-            lookupRoute(ac.flight).then((route) => {
+            routeFor(ac.flight).then((route) => {
               state.route = route ?? null;
               renderPanel();
             });
@@ -520,6 +531,13 @@ els.startBtn.addEventListener("click", enableAudio);
 els.trackedCount.textContent = String(CELEBRITY_TAILS.length);
 setStatus("loading", "Starting…");
 renderPanel(); // initial render — every tail starts as "no signal"
+
+if (DEMO_MODE) {
+  const badge = document.createElement("div");
+  badge.id = "demo-badge";
+  badge.textContent = "DEMO MODE — scripted scenario, no live data";
+  document.body.appendChild(badge);
+}
 
 loadAirports();
 
