@@ -446,12 +446,14 @@ async function pollOnce() {
   els.pollStats.innerHTML = "";
 
   let snapshot;
+  let lastErrorMsg = null;
   try {
     snapshot = await adsb.fetchBulkSnapshot();
     sweep.ok = 1;
   } catch (err) {
     if (err.rateLimited) sweep.rate = 1;
     else sweep.err = 1;
+    lastErrorMsg = err.message;
     console.warn("[adsb snapshot]", err.message);
     snapshot = new Map();
   }
@@ -503,9 +505,10 @@ async function pollOnce() {
 
   sweep.current = null;
   els.pollProgress.innerHTML = `<span class="reg">${matched}</span> of ${sweep.total} in snapshot`;
+  const detail = lastErrorMsg ? ` <span class="stat-detail">${lastErrorMsg}</span>` : "";
   els.pollStats.innerHTML =
-    sweep.rate > 0 ? `<span class="stat-rate">⏸ rate-limited</span>` :
-    sweep.err  > 0 ? `<span class="stat-err">✗ snapshot fetch failed</span>` :
+    sweep.rate > 0 ? `<span class="stat-rate">⏸ blocked</span>${detail}` :
+    sweep.err  > 0 ? `<span class="stat-err">✗ snapshot fetch failed</span>${detail}` :
                      `<span class="stat-ok">✓ ${snapshot.size} aircraft cached</span>`;
   els.airborneCount.textContent = String(airborne);
   els.lastUpdate.textContent = `Updated ${new Date().toLocaleTimeString()}`;

@@ -81,6 +81,13 @@ html, body {
 .stat-err  { color: #f85149; }
 .stat-rate { color: #d29922; }
 .stat-skip { color: #6e7681; }
+.stat-detail {
+  font-weight: 400;
+  color: #8b949e;
+  margin-left: 4px;
+  font-size: 10px;
+  word-break: break-word;
+}
 
 /* Highlight the row currently being polled. */
 .celeb-row.polling {
