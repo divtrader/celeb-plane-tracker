@@ -60,6 +60,7 @@ export const CELEBRITY_TAILS = [
   { reg: "D-BANN", name: "Hasso Plattner (SAP)",  aircraft: "Bombardier Challenger 300",   descriptor: "the SAP co-founder",             category: "business" },
   { reg: "N375A",  name: "SAP corporate jet",     aircraft: "Bombardier Challenger 300",   descriptor: "SAP's US-registered Challenger", category: "business" },
   { reg: "OE-LDM", name: "Flying Bulls DC-6B",    aircraft: "Douglas DC-6B (1958, vintage)", descriptor: "Red Bull's vintage flagship",  category: "business", wikipedia: "Red Bull" },
+  { reg: "ZS-KAT", name: "Ivan Glasenberg",       aircraft: "Pilatus PC-24",               descriptor: "the Glencore co-founder",        category: "business", wikipedia: "Ivan Glasenberg" },
 
   // === Hollywood ===
   { reg: "N350XX", name: "Tom Cruise",            aircraft: "Bombardier Challenger 350",   descriptor: "the actor",                      category: "hollywood" },
