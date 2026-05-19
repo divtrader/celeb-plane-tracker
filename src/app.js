@@ -51,6 +51,7 @@ const els = {
   panelToggle: document.getElementById("panel-toggle"),
   panel: document.getElementById("panel"),
   missionTime: document.getElementById("mission-time"),
+  flightStrips: document.getElementById("flight-strips"),
 };
 
 // Live UTC mission clock — updates every second.
@@ -82,7 +83,8 @@ function applyPanelState(collapsed) {
   els.panel.style.transform = "none";
   els.panelToggle.setAttribute("aria-label", collapsed ? "Show tracked list" : "Hide tracked list");
 }
-applyPanelState(localStorage.getItem(PANEL_COLLAPSED_KEY) === "1");
+// Default to collapsed — map is the hero; roster lives behind the tab.
+applyPanelState((localStorage.getItem(PANEL_COLLAPSED_KEY) ?? "1") === "1");
 
 function togglePanel(e) {
   // Defensive: in live mode the click sometimes gets caught up in
@@ -496,7 +498,88 @@ function renderPanel() {
 
   els.celebList.innerHTML = html;
   const visibleAirborne = rows.filter((s) => s.phase === "cruising" || s.phase === "zone").length;
-  els.panelCount.textContent = `${visibleAirborne} live`;
+  els.panelCount.textContent = `${visibleAirborne} live · ${rows.length} tracked`;
+  renderFlightStrips(rows);
+}
+
+// Flight strips — only airborne celebs as floating cards on the right.
+// Vintage ATC paper-strip aesthetic.
+function renderFlightStrips(allRows) {
+  if (!els.flightStrips) return;
+  const airborne = (allRows || [...tailState.values()])
+    .filter((s) => s.phase === "cruising" || s.phase === "zone")
+    .sort((a, b) => {
+      if (a.phase !== b.phase) return a.phase === "zone" ? -1 : 1;
+      return a.meta.name.localeCompare(b.meta.name);
+    });
+
+  if (airborne.length === 0) {
+    els.flightStrips.innerHTML = `
+      <div class="flight-strip-empty">
+        AIRSPACE QUIET
+        <span class="sub">No tracked assets aloft</span>
+      </div>`;
+    return;
+  }
+
+  els.flightStrips.innerHTML = airborne.map((s) => {
+    const { meta, ac, phase, route, takeoffAirport } = s;
+
+    const portrait = getPortrait(meta.name);
+    const avatar = portrait
+      ? `<div class="fs-avatar fs-avatar-photo" style="background-image: url('${portrait}');"></div>`
+      : (() => {
+          const hue = hashHue(meta.name);
+          const ini = avatarInitials(meta.name);
+          return `<div class="fs-avatar" style="background: linear-gradient(135deg, hsl(${hue},55%,40%), hsl(${(hue+30)%360},55%,28%));">${ini}</div>`;
+        })();
+
+    let progressBlock = "";
+    if (route && ac) {
+      const { pct } = computeProgress(route, ac.lat, ac.lon);
+      const pctNum = Math.round(pct * 100);
+      const origCode = route.origin.iata || route.origin.icao;
+      const destCode = route.destination.iata || route.destination.icao;
+      const origName = route.origin.name || origCode;
+      const destName = route.destination.name || destCode;
+      progressBlock = `
+        <div class="fs-progress">
+          <span class="fs-iata">${origCode}</span>
+          <div class="fs-progress-bar"><div class="fs-progress-fill" style="width: ${pctNum}%"></div></div>
+          <span class="fs-iata">${destCode}</span>
+        </div>
+        <div class="fs-route-names">${origName} <span class="arrow">→</span> ${destName}</div>`;
+    } else if (takeoffAirport && ac) {
+      progressBlock = `<div class="fs-route-names">From ${takeoffAirport.name} <span class="arrow">→</span> destination unknown</div>`;
+    } else if (ac && typeof ac.alt === "number") {
+      const pctNum = Math.max(3, Math.min(100, (ac.alt / 45000) * 100));
+      progressBlock = `
+        <div class="fs-progress">
+          <span class="fs-iata">GND</span>
+          <div class="fs-progress-bar"><div class="fs-progress-fill" style="width: ${pctNum.toFixed(0)}%"></div></div>
+          <span class="fs-iata">FL450</span>
+        </div>`;
+    }
+
+    const alt = ac ? (fmtAlt(ac.alt) || "—") : "—";
+    const spd = ac ? (fmtSpeed(ac.speed) || "—") : "—";
+    const statusText = phase === "zone" ? "IN ZONE" : "CRUISING";
+
+    return `
+      <div class="flight-strip phase-${phase}" data-reg="${meta.reg.toUpperCase()}">
+        ${avatar}
+        <div class="fs-header">
+          <div class="fs-name">${meta.name}</div>
+          <div class="fs-status">◉ ${statusText}</div>
+        </div>
+        <div class="fs-meta">${meta.reg} · ${meta.aircraft}</div>
+        <div class="fs-data">
+          <span><span class="fs-data-label">ALT</span>${alt}</span>
+          <span><span class="fs-data-label">SPD</span>${spd}</span>
+        </div>
+        ${progressBlock}
+      </div>`;
+  }).join("");
 }
 
 els.celebList.addEventListener("click", (e) => {
@@ -506,6 +589,15 @@ els.celebList.addEventListener("click", (e) => {
   const s = tailState.get(reg);
   if (!s?.ac) return;
   map.flyTo([s.ac.lat, s.ac.lon], 8, { duration: 0.8 });
+});
+
+els.flightStrips.addEventListener("click", (e) => {
+  const card = e.target.closest(".flight-strip");
+  if (!card) return;
+  const reg = card.dataset.reg;
+  const s = tailState.get(reg);
+  if (!s?.ac) return;
+  map.flyTo([s.ac.lat, s.ac.lon], 7, { duration: 0.9 });
 });
 
 const EVENT_LABEL = {
@@ -600,27 +692,28 @@ function showEventCard(evt) {
 
 function renderHistory() {
   if (eventHistory.length === 0) {
-    els.historyList.innerHTML = `<li class="history-empty">Nothing yet — waiting for the first event.</li>`;
+    els.historyList.innerHTML = `<li class="history-empty">// AWAITING TRANSMISSION</li>`;
     return;
   }
-  els.historyList.innerHTML = eventHistory.map((e, i) => {
+  const itemHtml = (e, idx) => {
     const clickable = e.ac && typeof e.ac.lat === "number" ? "" : "unclickable";
-    // Spell out the airport name in the meta line so the strip reads
-    // "Drake — Took off from Teterboro · 2m ago" instead of just
-    // "Took off · 2m ago" with no location context.
     const where = e.airport
       ? (e.type === "takeoff" ? ` from ${e.airport.name}` :
          e.type === "landing" ? ` at ${e.airport.name}` : "")
       : "";
     return `
-      <li class="history-item type-${e.type} ${clickable}" data-idx="${i}">
+      <li class="history-item type-${e.type} ${clickable}" data-idx="${idx}">
         <span class="history-icon">${EVENT_ICON[e.type]}</span>
         <div class="history-text">
-          <div class="history-name">${e.meta.name}</div>
-          <div class="history-meta">${EVENT_LABEL[e.type]}${where} · ${timeAgo(e.at)}</div>
+          <span class="history-name">${e.meta.name}</span>
+          <span class="history-meta">${EVENT_LABEL[e.type]}${where} · ${timeAgo(e.at)}</span>
         </div>
       </li>`;
-  }).join("");
+  };
+  // Duplicate the items so the CSS translateX(-50%) marquee loop has a
+  // gapless seam — the second copy sits exactly where the first did.
+  const items = eventHistory.map(itemHtml).join("");
+  els.historyList.innerHTML = items + items;
 }
 
 els.eventCard.addEventListener("click", () => {
