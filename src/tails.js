@@ -29,6 +29,7 @@ export const CELEBRITY_TAILS = [
   { reg: "N7KC",   name: "Kenny Chesney",         aircraft: "Dassault Falcon 900",         descriptor: "the country star",               category: "music" },
   { reg: "N958TB", name: "Blake Shelton",         aircraft: "Gulfstream IV",               descriptor: "the country singer",             category: "music" },
   { reg: "N506AB", name: "Luke Bryan",            aircraft: "Learjet 60",                  descriptor: "the country singer",             category: "music" },
+  { reg: "M-EDZE", name: "Elton John",            aircraft: "Bombardier Global Express XRS", descriptor: "the music icon",               category: "music" },
 
   // === Tech / Business ===
   { reg: "N628TS", name: "Elon Musk",             aircraft: "Gulfstream G650ER",           descriptor: "the Tesla and SpaceX CEO",       category: "tech" },
@@ -54,6 +55,8 @@ export const CELEBRITY_TAILS = [
   { reg: "N1KE",   name: "Phil Knight (Nike)",    aircraft: "Gulfstream G650",             descriptor: "the Nike co-founder",            category: "business" },
   { reg: "N1DC",   name: "Jerry Jones",           aircraft: "Gulfstream V",                descriptor: "the Dallas Cowboys owner",       category: "business" },
   { reg: "N818TH", name: "Tommy Hilfiger",        aircraft: "Dassault Falcon 900",         descriptor: "the fashion designer",           category: "business" },
+  { reg: "N737LE", name: "Len Blavatnik",         aircraft: "Boeing 737 BBJ",              descriptor: "the Warner Music owner",         category: "business" },
+  { reg: "P4-BDL", name: "Roman Abramovich",      aircraft: "Boeing 787 Dreamliner",       descriptor: "the Russian oligarch",           category: "business" },
 
   // === Hollywood ===
   { reg: "N350XX", name: "Tom Cruise",            aircraft: "Bombardier Challenger 350",   descriptor: "the actor",                      category: "hollywood" },
@@ -74,7 +77,11 @@ export const CELEBRITY_TAILS = [
   { reg: "N517TW", name: "Tiger Woods",           aircraft: "Gulfstream V",                descriptor: "the golf legend",                category: "athletics" },
   { reg: "N151SD", name: "Floyd Mayweather",      aircraft: "Gulfstream IV",               descriptor: "the boxing champion",            category: "athletics" },
   { reg: "N313AR", name: "Alex Rodriguez",        aircraft: "Gulfstream IV",               descriptor: "the baseball legend",            category: "athletics" },
-  { reg: "PH-DFT", name: "Max Verstappen",        aircraft: "Dassault Falcon 900",         descriptor: "the Formula 1 champion",         category: "athletics" },
+  { reg: "PH-DFT", name: "Max Verstappen",        aircraft: "Dassault Falcon 900EX",       descriptor: "the Formula 1 champion",         category: "athletics" },
+  { reg: "LX-GOL", name: "Cristiano Ronaldo",     aircraft: "Bombardier Global Express XRS", descriptor: "the footballer",               category: "athletics" },
+  { reg: "LV-IRQ", name: "Lionel Messi",          aircraft: "Gulfstream V",                descriptor: "the football legend",            category: "athletics" },
+  { reg: "OK-HAR", name: "Zlatan Ibrahimović",    aircraft: "Cessna Citation 560XL",       descriptor: "the football icon",              category: "athletics" },
+  { reg: "N1989R", name: "Rory McIlroy",          aircraft: "Gulfstream G650ER",           descriptor: "the golfer",                     category: "athletics" },
 
   // === Politics / Government ===
   { reg: "N757AF", icao: "AA3410", name: "Donald Trump (Trump Force One)", aircraft: "Boeing 757",   descriptor: "the 47th US president", category: "politics" },
