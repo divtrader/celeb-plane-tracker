@@ -1,5 +1,5 @@
 import { CELEBRITY_TAILS } from "./tails.js";
-import { AdsbLolAdapter } from "./adsb/adsblol.js";
+import { AirplanesLiveAdapter } from "./adsb/airplaneslive.js";
 import { AMSTERDAM_ZONE, GeofenceTracker } from "./geofence.js";
 import { FlightStateTracker } from "./flightState.js";
 import { loadAirports, nearestAirport } from "./airports.js";
@@ -12,7 +12,7 @@ const REQUEST_SPACING_MS = 250; // be polite to adsb.lol — stagger per-tail lo
 const EUROPE_CENTER = [50.5, 8.0];
 const EUROPE_ZOOM = 5;
 
-const adsb = new AdsbLolAdapter();
+const adsb = new AirplanesLiveAdapter();
 const voice = new Voice();
 const chime = new Chime();
 const tailsByReg = new Map(CELEBRITY_TAILS.map((t) => [t.reg.toUpperCase(), t]));
