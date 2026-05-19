@@ -32,6 +32,7 @@ export class AirplanesLiveAdapter {
     return {
       reg: ac.r ?? fallbackReg ?? null,
       icao: ac.hex ?? null,
+      flight: typeof ac.flight === "string" ? ac.flight.trim() : null,
       lat: ac.lat,
       lon: ac.lon,
       alt: onGround ? null : altNum,

@@ -3,6 +3,7 @@ import { AirplanesLiveAdapter } from "./adsb/airplaneslive.js";
 import { AMSTERDAM_ZONE, GeofenceTracker } from "./geofence.js";
 import { FlightStateTracker } from "./flightState.js";
 import { loadAirports, nearestAirport } from "./airports.js";
+import { lookupRoute, computeProgress } from "./routes.js";
 import { Voice } from "./voice.js";
 import { Chime } from "./chime.js";
 
@@ -160,12 +161,28 @@ function renderPanel() {
       : `<span>${alt ?? '<span class="stat-empty">—</span>'}</span><span>${spd ?? '<span class="stat-empty">—</span>'}</span>`;
     const uncertain = meta.uncertain ? `<span class="uncertain-badge" title="Tail unverified — curate before trusting">?</span>` : "";
     const clickable = ac && !ac.onGround ? "" : "unclickable";
-    // Altitude bar: 0 → 45000 ft maps to 0–100%. Clamps at extremes so
-    // we never overflow the track.
-    const altPct = ac && typeof ac.alt === "number"
-      ? Math.max(3, Math.min(100, (ac.alt / 45_000) * 100))
-      : 0;
-    const altBar = `<div class="row-altbar"><div class="row-altbar-fill" style="width: ${altPct}%"></div></div>`;
+
+    // Prefer real route progress when adsbdb returned a flight plan.
+    // Fall back to altitude (0 → 45000 ft) when no route is available
+    // (common for private jets that file as their own N-number).
+    let progressBar = "";
+    if (s.route && ac) {
+      const { pct, traveledKm, totalKm } = computeProgress(s.route, ac.lat, ac.lon);
+      const pctNum = Math.round(pct * 100);
+      const orig = s.route.origin.iata || s.route.origin.icao;
+      const dest = s.route.destination.iata || s.route.destination.icao;
+      const title = `${pctNum}% · ${Math.round(traveledKm)} / ${Math.round(totalKm)} km`;
+      progressBar = `
+        <div class="row-route" title="${title}">
+          <span class="row-route-iata">${orig}</span>
+          <div class="row-progress"><div class="row-progress-fill" style="width: ${pctNum}%"></div></div>
+          <span class="row-route-iata">${dest}</span>
+        </div>`;
+    } else if (ac && typeof ac.alt === "number") {
+      const altPct = Math.max(3, Math.min(100, (ac.alt / 45_000) * 100));
+      progressBar = `<div class="row-altbar" title="Altitude only — no route available"><div class="row-altbar-fill" style="width: ${altPct}%"></div></div>`;
+    }
+
     return `
       <li class="celeb-row phase-${phase} ${clickable}" data-reg="${meta.reg.toUpperCase()}">
         <span class="row-dot"></span>
@@ -173,7 +190,7 @@ function renderPanel() {
         <span class="row-phase">${PHASE_LABEL[phase]}</span>
         <div class="row-meta">${meta.reg} · ${meta.aircraft}</div>
         <div class="row-stats">${stats}</div>
-        ${altBar}
+        ${progressBar}
       </li>`;
   }).join("");
 
@@ -357,6 +374,7 @@ async function pollOnce() {
           state.phase = "ground";
           state.ac = ac;
           state.inZone = false;
+          state.route = undefined;
         } else {
           airborne++;
           state.ac = ac; // assign before geofence.update so the zone callback sees current data
@@ -364,6 +382,15 @@ async function pollOnce() {
           upsertMarker(reg, ac, tail, inZone);
           state.phase = inZone ? "zone" : "cruising";
           state.inZone = inZone;
+          // Async route lookup — fires once per flight, refreshes the panel
+          // when the route is found. Reset to undefined on landing/no-signal
+          // so the next flight gets a fresh lookup.
+          if (state.route === undefined && ac.flight) {
+            lookupRoute(ac.flight).then((route) => {
+              state.route = route ?? null;
+              renderPanel();
+            });
+          }
         }
       } else {
         removeMarker(reg);
@@ -371,6 +398,7 @@ async function pollOnce() {
         state.phase = "nosignal";
         state.ac = null;
         state.inZone = false;
+        state.route = undefined;
       }
     } catch (err) {
       errors++;
