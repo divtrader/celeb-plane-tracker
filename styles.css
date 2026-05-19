@@ -60,6 +60,40 @@ html, body {
 #counts { color: #8b949e; font-size: 12px; }
 #last-update { color: #6e7681; font-size: 11px; margin-top: 2px; }
 
+#poll-progress {
+  margin-top: 4px;
+  font-size: 11px;
+  color: #c9d1d9;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+  min-height: 14px;
+}
+#poll-progress .reg {
+  color: #79c0ff;
+  font-weight: 600;
+}
+#poll-progress .countdown { color: #6e7681; }
+
+#poll-stats {
+  display: flex;
+  gap: 10px;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  margin-top: 2px;
+  min-height: 14px;
+}
+.stat-ok   { color: #3fb950; }
+.stat-err  { color: #f85149; }
+.stat-rate { color: #d29922; }
+.stat-skip { color: #6e7681; }
+
+/* Highlight the row currently being polled. */
+.celeb-row.polling {
+  background: rgba(88, 166, 255, 0.08);
+  outline: 1px solid rgba(88, 166, 255, 0.3);
+}
+
 #start-btn {
   position: absolute;
   top: 50%;

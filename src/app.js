@@ -34,7 +34,48 @@ const els = {
   celebList: document.getElementById("celeb-list"),
   eventCard: document.getElementById("event-card"),
   historyList: document.getElementById("history-list"),
+  pollProgress: document.getElementById("poll-progress"),
+  pollStats: document.getElementById("poll-stats"),
 };
+
+// Live per-sweep counters surfaced in the HUD. Helps debug rate-limit
+// issues and gives the kiosk something to watch between events.
+const sweep = { current: null, idx: 0, total: 0, ok: 0, err: 0, rate: 0, skip: 0 };
+let countdownTimer = null;
+
+function renderSweepUi() {
+  if (sweep.current) {
+    els.pollProgress.innerHTML =
+      `<span class="reg">${sweep.current}</span> · ${sweep.idx}/${sweep.total}`;
+  }
+  if (sweep.total > 0) {
+    els.pollStats.innerHTML =
+      `<span class="stat-ok">✓ ${sweep.ok}</span>` +
+      `<span class="stat-err">✗ ${sweep.err}</span>` +
+      `<span class="stat-rate">⏸ ${sweep.rate}</span>` +
+      (sweep.skip ? `<span class="stat-skip">↷ ${sweep.skip}</span>` : "");
+  }
+}
+
+function startCountdown(seconds) {
+  if (countdownTimer) clearInterval(countdownTimer);
+  const target = Date.now() + seconds * 1000;
+  const tick = () => {
+    const remaining = Math.max(0, Math.ceil((target - Date.now()) / 1000));
+    els.pollProgress.innerHTML = `<span class="countdown">Next sweep in ${remaining}s</span>`;
+    if (remaining === 0) clearInterval(countdownTimer);
+  };
+  tick();
+  countdownTimer = setInterval(tick, 1000);
+}
+
+function highlightPollingRow(reg) {
+  document.querySelectorAll(".celeb-row.polling").forEach((el) => el.classList.remove("polling"));
+  if (reg) {
+    const row = document.querySelector(`.celeb-row[data-reg="${reg}"]`);
+    if (row) row.classList.add("polling");
+  }
+}
 
 // Per-tail snapshot used by the roster panel.
 // phase: "cruising" | "zone" | "ground" | "nosignal"
@@ -359,15 +400,34 @@ function sleep(ms) {
 
 async function pollOnce() {
   setStatus("loading", "Polling…");
+  sweep.current = null;
+  sweep.idx = 0;
+  sweep.total = CELEBRITY_TAILS.length;
+  sweep.ok = sweep.err = sweep.rate = sweep.skip = 0;
+  renderSweepUi();
   let airborne = 0;
-  let errors = 0;
 
   for (const tail of CELEBRITY_TAILS) {
     const reg = tail.reg.toUpperCase();
+    sweep.current = reg;
+    sweep.idx++;
+    renderSweepUi();
+    highlightPollingRow(reg);
+
+    // If we've been getting rate-limited, skip the rest of this sweep —
+    // hammering it just resets Cloudflare's cooldown. Preserve previous
+    // state and try again next minute.
+    if (sweep.rate >= 3) {
+      sweep.skip = sweep.total - sweep.idx + 1;
+      renderSweepUi();
+      break;
+    }
+
     try {
       const ac = tail.icao
         ? await adsb.fetchByIcao(tail.icao)
         : await adsb.fetchByRegistration(reg);
+      sweep.ok++;
       const state = tailState.get(reg);
       state.updatedAt = Date.now();
       if (ac) {
@@ -405,19 +465,29 @@ async function pollOnce() {
         state.route = undefined;
       }
     } catch (err) {
-      errors++;
+      if (err.rateLimited) {
+        sweep.rate++;
+      } else {
+        sweep.err++;
+      }
       console.warn(`[adsb] ${reg}:`, err.message);
     }
+    renderSweepUi();
     await sleep(REQUEST_SPACING_MS);
     renderPanel(); // live update as each tail comes back
   }
 
+  highlightPollingRow(null);
+  sweep.current = null;
   els.airborneCount.textContent = String(airborne);
   els.lastUpdate.textContent = `Updated ${new Date().toLocaleTimeString()}`;
-  if (errors === 0) {
+
+  if (sweep.rate > 0) {
+    setStatus("err", "Rate-limited — cooling down");
+  } else if (sweep.err === 0) {
     setStatus("ok", "Live");
-  } else if (errors < CELEBRITY_TAILS.length) {
-    setStatus("ok", `Live (${errors} errors)`);
+  } else if (sweep.err < CELEBRITY_TAILS.length) {
+    setStatus("ok", `Live (${sweep.err} errors)`);
   } else {
     setStatus("err", "Source unreachable");
   }
@@ -460,7 +530,10 @@ async function pollLoop() {
   } catch (err) {
     console.error("[pollLoop]", err);
   }
-  setTimeout(pollLoop, POLL_INTERVAL_MS);
+  // Longer cooldown when rate-limited so Cloudflare's bucket refills.
+  const wait = sweep.rate > 0 ? POLL_INTERVAL_MS * 2 : POLL_INTERVAL_MS;
+  startCountdown(Math.round(wait / 1000));
+  setTimeout(pollLoop, wait);
 }
 pollLoop();
 

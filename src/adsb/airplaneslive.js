@@ -19,7 +19,17 @@ export class AirplanesLiveAdapter {
 
   async _fetch(url, fallbackReg) {
     const res = await this.fetch(url, { headers: { Accept: "application/json" } });
-    if (!res.ok) throw new Error(`airplanes.live ${res.status}`);
+    if (res.status === 429) {
+      const err = new Error("rate-limited (HTTP 429)");
+      err.status = 429;
+      err.rateLimited = true;
+      throw err;
+    }
+    if (!res.ok) {
+      const err = new Error(`airplanes.live HTTP ${res.status}`);
+      err.status = res.status;
+      throw err;
+    }
     const data = await res.json();
     const ac = Array.isArray(data?.ac) ? data.ac[0] : null;
     if (!ac || typeof ac.lat !== "number" || typeof ac.lon !== "number") return null;
