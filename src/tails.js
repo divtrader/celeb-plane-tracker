@@ -18,12 +18,12 @@
 export const CELEBRITY_TAILS = [
   // === Music ===
   { reg: "N621MM", name: "Taylor Swift",          aircraft: "Dassault Falcon 7X",          descriptor: "the pop star",                   category: "music" },
-  { reg: "N767CJ", name: "Drake",                 aircraft: "Boeing 767 (Air Drake)",      descriptor: "the rapper",                     category: "music" },
+  { reg: "N767CJ", name: "Drake",                 aircraft: "Boeing 767 (Air Drake)",      descriptor: "the rapper",                     category: "music", wikipedia: "Drake (musician)" },
   { reg: "N44440", name: "Jay-Z & Beyoncé",       aircraft: "Bombardier Global 7500",      descriptor: "music's biggest couple",         category: "music" },
   { reg: "N1980K", name: "Kim Kardashian",        aircraft: "Gulfstream G650ER",           descriptor: "the reality TV star",            category: "music" },
   { reg: "N810KJ", name: "Kylie Jenner",          aircraft: "Bombardier Global 7500",      descriptor: "the cosmetics billionaire",      category: "music" },
   { reg: "N713TS", name: "Travis Scott",          aircraft: "Embraer E-190",               descriptor: "the rapper",                     category: "music" },
-  { reg: "N1969C", name: "Diddy",                 aircraft: "Gulfstream V",                descriptor: "the music mogul",                category: "music" },
+  { reg: "N1969C", name: "Diddy",                 aircraft: "Gulfstream V",                descriptor: "the music mogul",                category: "music", wikipedia: "Sean Combs" },
   { reg: "N474D",  name: "Lady Gaga",             aircraft: "Gulfstream V",                descriptor: "the pop star",                   category: "music" },
   { reg: "N71KR",  name: "Kid Rock",              aircraft: "Bombardier Challenger 600",   descriptor: "the rocker",                     category: "music" },
   { reg: "N7KC",   name: "Kenny Chesney",         aircraft: "Dassault Falcon 900",         descriptor: "the country star",               category: "music" },

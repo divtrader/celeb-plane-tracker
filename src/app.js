@@ -5,6 +5,7 @@ import { AMSTERDAM_ZONE, GeofenceTracker } from "./geofence.js";
 import { FlightStateTracker } from "./flightState.js";
 import { loadAirports, nearestAirport } from "./airports.js";
 import { lookupRoute, computeProgress } from "./routes.js";
+import { prefetchPortraits, getPortrait } from "./portraits.js";
 import { Voice } from "./voice.js";
 import { Chime } from "./chime.js";
 
@@ -369,6 +370,13 @@ function hashHue(s) {
   return Math.abs(h) % 360;
 }
 function avatarHtml(meta) {
+  // Prefer real photo from Wikipedia when we've fetched one; fall back
+  // to initials so the panel never renders blank while portraits are
+  // still loading or for celebs whose Wikipedia page has no image.
+  const url = getPortrait(meta.name);
+  if (url) {
+    return `<span class="avatar avatar-photo" style="background-image: url('${url}');" role="img" aria-label="${meta.name}"></span>`;
+  }
   const hue = hashHue(meta.name);
   const initials = avatarInitials(meta.name);
   return `<span class="avatar" style="background: linear-gradient(135deg, hsl(${hue}, 55%, 40%), hsl(${(hue + 30) % 360}, 55%, 28%));">${initials}</span>`;
@@ -837,6 +845,17 @@ if (DEMO_MODE) {
 }
 
 loadAirports();
+
+// Pre-fetch celebrity portraits in the background so the avatar circles
+// fill in with real photos as soon as they're available. Coalesces
+// repeated re-renders via requestAnimationFrame.
+let pendingRender = false;
+function scheduleRender() {
+  if (pendingRender) return;
+  pendingRender = true;
+  requestAnimationFrame(() => { pendingRender = false; renderPanel(); });
+}
+prefetchPortraits(CELEBRITY_TAILS, scheduleRender).then(scheduleRender);
 
 // Self-chained polling: wait POLL_INTERVAL_MS *after* the previous sweep
 // finishes. Using setInterval would let sweeps overlap when a sweep takes
