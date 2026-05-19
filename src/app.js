@@ -8,7 +8,11 @@ import { Voice } from "./voice.js";
 import { Chime } from "./chime.js";
 
 const POLL_INTERVAL_MS = 60_000;
-const REQUEST_SPACING_MS = 250; // be polite to adsb.lol — stagger per-tail lookups
+// airplanes.live rate-limits at ~1 request/second. With 56 tails this means
+// a full sweep takes ~56s, which fits inside the 60s poll window. The poll
+// loop is also self-chained (see pollLoop below) so a slow sweep never
+// overlaps with the next one.
+const REQUEST_SPACING_MS = 1000;
 
 const EUROPE_CENTER = [50.5, 8.0];
 const EUROPE_ZOOM = 5;
@@ -445,8 +449,20 @@ setStatus("loading", "Starting…");
 renderPanel(); // initial render — every tail starts as "no signal"
 
 loadAirports();
-pollOnce();
-setInterval(pollOnce, POLL_INTERVAL_MS);
+
+// Self-chained polling: wait POLL_INTERVAL_MS *after* the previous sweep
+// finishes. Using setInterval would let sweeps overlap when a sweep takes
+// longer than the interval, doubling the request rate and tripping
+// airplanes.live's rate limit.
+async function pollLoop() {
+  try {
+    await pollOnce();
+  } catch (err) {
+    console.error("[pollLoop]", err);
+  }
+  setTimeout(pollLoop, POLL_INTERVAL_MS);
+}
+pollLoop();
 
 // Some browsers populate the voice list asynchronously.
 if (window.speechSynthesis) {
