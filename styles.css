@@ -607,6 +607,23 @@ html, body {
 .phase-ground .row-route,
 .phase-nosignal .row-route { display: none; }
 
+/* Full airport names under the IATA bar — small, dimmed, single line. */
+.row-route-names {
+  grid-column: 2 / span 2;
+  font-size: 11px;
+  color: #8b949e;
+  margin-top: 3px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.row-route-names .row-arrow {
+  margin: 0 6px;
+  color: #6e7681;
+}
+.phase-ground .row-route-names,
+.phase-nosignal .row-route-names { display: none; }
+
 .uncertain-badge {
   display: inline-block;
   margin-left: 6px;

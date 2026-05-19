@@ -124,7 +124,10 @@ const tailState = new Map(
   }])
 );
 
-const TRAIL_MAX_POINTS = 30; // ~30 minutes at 60s poll
+// Keep the full flown path, not a rolling window. Caps high enough for
+// a transatlantic crossing (~9 h at 30 s polling = 1080 points) without
+// risking polyline-perf issues on the kiosk.
+const TRAIL_MAX_POINTS = 1500;
 
 const map = L.map("map", { zoomControl: true, preferCanvas: true }).setView(EUROPE_CENTER, EUROPE_ZOOM);
 L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
@@ -164,6 +167,24 @@ function labelHtml(meta, ac) {
   return `<strong>${meta.name}</strong><br><span style="color:#8b949e">${meta.reg} · ${alt} · ${spd}</span>`;
 }
 
+// The flown path: every observed position, prefixed by the origin
+// airport (a dashed segment) when we know it. That way the trail shows
+// the full journey even when we tune in mid-flight.
+function trailLatLngs(reg) {
+  const entry = markers.get(reg);
+  if (!entry) return [];
+  const state = tailState.get(reg);
+  const origin = state?.route?.origin;
+  return origin
+    ? [[origin.lat, origin.lon], ...entry.positions]
+    : entry.positions.slice();
+}
+
+function refreshTrail(reg) {
+  const entry = markers.get(reg);
+  if (entry) entry.trail.setLatLngs(trailLatLngs(reg));
+}
+
 function upsertMarker(reg, ac, meta, inZone) {
   const latlng = [ac.lat, ac.lon];
   let entry = markers.get(reg);
@@ -171,8 +192,8 @@ function upsertMarker(reg, ac, meta, inZone) {
     const marker = L.marker(latlng, { icon: planeIcon(ac.track, inZone) }).addTo(map);
     const trail = L.polyline([latlng], {
       color: "#58a6ff",
-      weight: 2,
-      opacity: 0.45,
+      weight: 2.5,
+      opacity: 0.55,
       smoothFactor: 1.5,
       interactive: false,
     }).addTo(trailLayer);
@@ -190,10 +211,10 @@ function upsertMarker(reg, ac, meta, inZone) {
     entry.marker.setTooltipContent(labelHtml(meta, ac));
     entry.positions.push(latlng);
     if (entry.positions.length > TRAIL_MAX_POINTS) entry.positions.shift();
-    entry.trail.setLatLngs(entry.positions);
     entry.trail.setStyle({ color: inZone ? "#f0883e" : "#58a6ff" });
     entry.inZone = inZone;
   }
+  refreshTrail(reg);
 }
 
 function removeMarker(reg) {
@@ -249,15 +270,18 @@ function renderPanel() {
     if (s.route && ac) {
       const { pct, traveledKm, totalKm } = computeProgress(s.route, ac.lat, ac.lon);
       const pctNum = Math.round(pct * 100);
-      const orig = s.route.origin.iata || s.route.origin.icao;
-      const dest = s.route.destination.iata || s.route.destination.icao;
+      const origCode = s.route.origin.iata || s.route.origin.icao;
+      const destCode = s.route.destination.iata || s.route.destination.icao;
+      const origName = s.route.origin.name || origCode;
+      const destName = s.route.destination.name || destCode;
       const title = `${pctNum}% · ${Math.round(traveledKm)} / ${Math.round(totalKm)} km`;
       progressBar = `
         <div class="row-route" title="${title}">
-          <span class="row-route-iata">${orig}</span>
+          <span class="row-route-iata">${origCode}</span>
           <div class="row-progress"><div class="row-progress-fill" style="width: ${pctNum}%"></div></div>
-          <span class="row-route-iata">${dest}</span>
-        </div>`;
+          <span class="row-route-iata">${destCode}</span>
+        </div>
+        <div class="row-route-names">${origName} <span class="row-arrow">→</span> ${destName}</div>`;
     } else if (ac && typeof ac.alt === "number") {
       const altPct = Math.max(3, Math.min(100, (ac.alt / 45_000) * 100));
       progressBar = `<div class="row-altbar" title="Altitude only — no route available"><div class="row-altbar-fill" style="width: ${altPct}%"></div></div>`;
@@ -497,6 +521,7 @@ async function pollOnce() {
         if (state.route === undefined && ac.flight) {
           routeFor(ac.flight).then((route) => {
             state.route = route ?? null;
+            refreshTrail(reg); // prepend origin once it's known
             renderPanel();
           });
         }
