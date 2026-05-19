@@ -57,13 +57,24 @@ function applyPanelState(collapsed) {
   els.panelToggle.setAttribute("aria-label", collapsed ? "Show tracked list" : "Hide tracked list");
 }
 applyPanelState(localStorage.getItem(PANEL_COLLAPSED_KEY) === "1");
-els.panelToggle.addEventListener("click", () => {
+
+function togglePanel(e) {
+  // Defensive: in live mode the click sometimes gets caught up in
+  // Leaflet's pointer handling. Stop propagation + preventDefault to
+  // ensure the click reaches us cleanly.
+  if (e) {
+    e.preventDefault();
+    e.stopPropagation();
+  }
   const next = !document.body.classList.contains("panel-collapsed");
   applyPanelState(next);
   localStorage.setItem(PANEL_COLLAPSED_KEY, next ? "1" : "0");
-  // Leaflet needs to know about the container resize after the slide.
-  setTimeout(() => map.invalidateSize(), 340);
-});
+  setTimeout(() => map.invalidateSize(false), 340);
+}
+els.panelToggle.addEventListener("click", togglePanel);
+// Pointerdown as a redundant trigger — fires before click and sidesteps
+// any 300ms click-delay weirdness on touch devices.
+els.panelToggle.addEventListener("pointerdown", (e) => { e.stopPropagation(); });
 
 // Live per-sweep counters surfaced in the HUD. Helps debug rate-limit
 // issues and gives the kiosk something to watch between events.
@@ -104,16 +115,53 @@ function highlightPollingRow(reg) {
   }
 }
 
+// Persistent state across reloads — saves flight trails, takeoff
+// airports, route lookups, and the activity history. Expired entries
+// (older than TRAIL_MAX_AGE_MS) get dropped on load so old flights
+// don't accumulate forever.
+const TRAILS_KEY = "celeb-tracker.trails-v1";
+const HISTORY_KEY = "celeb-tracker.history-v1";
+const TRAIL_MAX_AGE_MS = 24 * 60 * 60 * 1000;
+
+function loadPersisted() {
+  try {
+    const trailsRaw = JSON.parse(localStorage.getItem(TRAILS_KEY) || "{}");
+    const historyRaw = JSON.parse(localStorage.getItem(HISTORY_KEY) || "[]");
+    const now = Date.now();
+    const trails = {};
+    for (const [reg, data] of Object.entries(trailsRaw)) {
+      if (data && data.savedAt && now - data.savedAt < TRAIL_MAX_AGE_MS) {
+        trails[reg] = data;
+      }
+    }
+    // Only keep recent history entries too — within the same TTL window.
+    const history = historyRaw.filter((e) => e?.at && now - e.at < TRAIL_MAX_AGE_MS);
+    return { trails, history };
+  } catch {
+    return { trails: {}, history: [] };
+  }
+}
+const persisted = loadPersisted();
+
 // Per-tail snapshot used by the roster panel.
 // phase: "cruising" | "zone" | "ground" | "nosignal"
 const tailState = new Map(
-  CELEBRITY_TAILS.map((t) => [t.reg.toUpperCase(), {
-    meta: t,
-    phase: "nosignal",
-    ac: null,
-    inZone: false,
-    updatedAt: null,
-  }])
+  CELEBRITY_TAILS.map((t) => {
+    const reg = t.reg.toUpperCase();
+    const saved = persisted.trails[reg] || {};
+    return [reg, {
+      meta: t,
+      phase: "nosignal",
+      ac: null,
+      inZone: false,
+      updatedAt: null,
+      // Seed the trail from localStorage so the previously-flown line
+      // shows up immediately on next observation.
+      savedPositions: Array.isArray(saved.positions) ? saved.positions : null,
+      takeoffAirport: saved.takeoffAirport || null,
+      route: saved.route ?? undefined,
+    }];
+  })
 );
 
 // Keep the full flown path, not a rolling window. Caps high enough for
@@ -231,8 +279,17 @@ function upsertMarker(reg, ac, meta, inZone) {
   const latlng = [ac.lat, ac.lon];
   let entry = markers.get(reg);
   if (!entry) {
+    const state = tailState.get(reg);
+    // Seed with persisted positions from localStorage when present so
+    // the previously-flown trail shows up on the very first poll after
+    // a page reload.
+    const initial = state?.savedPositions?.length
+      ? [...state.savedPositions, latlng]
+      : [latlng];
+    if (state) state.savedPositions = null;
+
     const marker = L.marker(latlng, { icon: planeIcon(ac.track, inZone) }).addTo(map);
-    const trail = L.polyline([latlng], {
+    const trail = L.polyline(initial, {
       color: "#58a6ff",
       weight: 3,
       opacity: 0.8,
@@ -248,7 +305,7 @@ function upsertMarker(reg, ac, meta, inZone) {
       offset: [14, 0],
       className: "plane-label",
     });
-    entry = { marker, trail, positions: [latlng], inZone };
+    entry = { marker, trail, positions: initial, inZone };
     markers.set(reg, entry);
   } else {
     entry.marker.setLatLng(latlng);
@@ -454,7 +511,8 @@ function flyToEvent(ac) {
   }, FLYTO_HOLD_MS);
 }
 const HISTORY_MAX = 20;
-const eventHistory = [];
+// Seeded from localStorage so the activity strip survives page reloads.
+const eventHistory = [...persisted.history];
 
 function timeAgo(ts) {
   const s = Math.floor((Date.now() - ts) / 1000);
@@ -534,10 +592,38 @@ function fireEvent({ type, meta, ac }) {
   console.log(`[ALERT ${type}]`, meta.name, meta.reg, airport ? `@ ${airport.icao}` : "");
   eventHistory.unshift(evt);
   if (eventHistory.length > HISTORY_MAX) eventHistory.pop();
+  saveHistory();
   showEventCard(evt);
   renderHistory();
   if (type !== "spotted") flyToEvent(ac);
   return evt;
+}
+
+function saveTrails() {
+  try {
+    const data = {};
+    const now = Date.now();
+    for (const [reg, entry] of markers.entries()) {
+      const state = tailState.get(reg);
+      data[reg] = {
+        positions: entry.positions,
+        takeoffAirport: state?.takeoffAirport ?? null,
+        route: state?.route ?? null,
+        savedAt: now,
+      };
+    }
+    localStorage.setItem(TRAILS_KEY, JSON.stringify(data));
+  } catch (err) {
+    console.warn("[persist trails]", err.message);
+  }
+}
+
+function saveHistory() {
+  try {
+    localStorage.setItem(HISTORY_KEY, JSON.stringify(eventHistory));
+  } catch (err) {
+    console.warn("[persist history]", err.message);
+  }
 }
 
 function pulseZone() {
@@ -705,6 +791,7 @@ async function pollOnce() {
   els.airborneCount.textContent = String(airborne);
   els.lastUpdate.textContent = `Updated ${new Date().toLocaleTimeString()}`;
   renderPanel();
+  saveTrails();
 
   if (sweep.rate > 0) setStatus("err", "Rate-limited — backing off");
   else if (sweep.err > 0) setStatus("err", "Source unreachable");

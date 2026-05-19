@@ -386,14 +386,15 @@ body.panel-collapsed #panel { transform: translateX(100%); }
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 901;
+  z-index: 2000;
   box-shadow: -6px 0 18px rgba(0, 0, 0, 0.4);
   touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
-  transition: background 0.18s, color 0.18s;
+  pointer-events: auto;
+  transition: background 0.18s, color 0.18s, transform 0.1s;
 }
-#panel-toggle:hover,
-#panel-toggle:active { background: #21262d; color: #fff; }
+#panel-toggle:hover { background: #21262d; color: #fff; }
+#panel-toggle:active { background: #30363d; transform: translateY(-50%) scale(0.95); }
 #panel-toggle:focus-visible { outline: 2px solid #58a6ff; outline-offset: 2px; }
 
 /* Grabber strip — three soft dots, just enough to read as "draggable" */
