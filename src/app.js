@@ -930,31 +930,15 @@ const issEls = {
   loc:  document.querySelector("#iss-card .iss-location"),
   pass: document.querySelector("#iss-card .iss-pass"),
 };
-// Custom SVG silhouette of the ISS — solar panels + central truss +
-// blinking light. Sits inside an outer glow ring so it reads as
-// "spacecraft" at any zoom level.
+// ISS silhouette — same single-path treatment as the airplane markers
+// (one fill, dark stroke, drop-shadow glow). Purple accent so it still
+// reads distinct from the blue celeb planes.
+const ISS_SVG = `<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet"><path d="M1 10.5 L7 10.5 L7 9.5 L10 9.5 L10 6 L14 6 L14 9.5 L17 9.5 L17 10.5 L23 10.5 L23 13.5 L17 13.5 L17 14.5 L14 14.5 L14 18 L10 18 L10 14.5 L7 14.5 L7 13.5 L1 13.5 Z"/></svg>`;
 const ISS_ICON = L.divIcon({
   className: "iss-marker",
-  html: `
-    <div class="iss-marker-glow"></div>
-    <svg class="iss-svg" viewBox="0 0 56 56" aria-hidden="true">
-      <g class="iss-panels">
-        <rect x="2"  y="22" width="14" height="6" rx="0.6"/>
-        <rect x="40" y="22" width="14" height="6" rx="0.6"/>
-        <rect x="2"  y="10" width="14" height="6" rx="0.6"/>
-        <rect x="40" y="10" width="14" height="6" rx="0.6"/>
-        <rect x="2"  y="34" width="14" height="6" rx="0.6"/>
-        <rect x="40" y="34" width="14" height="6" rx="0.6"/>
-      </g>
-      <g class="iss-truss">
-        <rect x="16" y="24" width="24" height="3"/>
-        <rect x="24" y="14" width="8"  height="24" rx="1.4"/>
-        <rect x="22" y="24" width="12" height="4"  rx="1"/>
-      </g>
-      <circle class="iss-beacon" cx="28" cy="25.5" r="2.6"/>
-    </svg>`,
-  iconSize: [56, 56],
-  iconAnchor: [28, 28],
+  html: `<div class="iss-glyph">${ISS_SVG}</div>`,
+  iconSize: [32, 32],
+  iconAnchor: [16, 16],
 });
 const ISS_OBSERVER = { lat: AMSTERDAM_ZONE.center.lat, lon: AMSTERDAM_ZONE.center.lon };
 const ISS_PASS_ALERT_LEAD_MS = 5 * 60_000; // voice alert 5 min before peak
