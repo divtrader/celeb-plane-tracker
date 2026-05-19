@@ -22,15 +22,15 @@
   --text-dim:       #64748b;
   --text-faint:     #475569;
 
-  /* Brand / accent — celebrity blue */
-  --accent:         #60a5fa;
-  --accent-bright:  #93c5fd;
-  --accent-dim:     rgba(96, 165, 250, 0.18);
-  --accent-glow:    rgba(96, 165, 250, 0.45);
+  /* Brand / accent — electric mint, distinctive from generic blue */
+  --accent:         #2dd4bf;
+  --accent-bright:  #5eead4;
+  --accent-dim:     rgba(45, 212, 191, 0.18);
+  --accent-glow:    rgba(45, 212, 191, 0.55);
 
   /* Phase semantics */
-  --p-cruising:     #60a5fa;
-  --p-cruising-rgb: 96, 165, 250;
+  --p-cruising:     #2dd4bf;
+  --p-cruising-rgb: 45, 212, 191;
   --p-zone:         #fb923c;
   --p-zone-rgb:     251, 146, 60;
   --p-ground:       #94a3b8;
@@ -99,17 +99,26 @@ html, body {
   font-feature-settings: "cv11", "ss03", "cv09";
 }
 
-/* Background gets a subtle radial wash so the dark map doesn't feel
-   uniform-flat. Sits behind everything. */
+/* Animated aurora background — slow-drifting color mesh behind
+   everything so the dark backdrop feels alive. Three blobs that
+   counter-rotate at different speeds. */
 body::before {
   content: "";
   position: fixed;
-  inset: 0;
+  inset: -20%;
   background:
-    radial-gradient(ellipse 80% 60% at 20% 0%, rgba(96, 165, 250, 0.06), transparent 60%),
-    radial-gradient(ellipse 70% 50% at 80% 100%, rgba(192, 132, 252, 0.05), transparent 60%);
+    radial-gradient(ellipse 50% 40% at 20% 30%, rgba(45, 212, 191, 0.10), transparent 60%),
+    radial-gradient(ellipse 40% 35% at 80% 20%, rgba(167, 139, 250, 0.09), transparent 60%),
+    radial-gradient(ellipse 55% 45% at 65% 85%, rgba(251, 146, 60, 0.07), transparent 60%);
   pointer-events: none;
   z-index: 0;
+  animation: auroraDrift 32s ease-in-out infinite alternate;
+  filter: blur(8px);
+}
+@keyframes auroraDrift {
+  0%   { transform: translate(0, 0) rotate(0deg); }
+  50%  { transform: translate(-3%, 2%) rotate(8deg); }
+  100% { transform: translate(2%, -1%) rotate(-6deg); }
 }
 
 button { font-family: inherit; }
@@ -390,12 +399,24 @@ button { font-family: inherit; }
   transition: right var(--t-slow) var(--ease-out);
 }
 #history-header {
-  padding: 8px 18px 4px;
-  font-size: 10px;
+  padding: 10px 22px 6px;
+  font-size: 11px;
   font-weight: 700;
-  letter-spacing: 0.16em;
+  letter-spacing: 0.2em;
   text-transform: uppercase;
-  color: var(--text-faint);
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+#history-header::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 8px var(--accent-glow);
+  animation: ping 2.4s ease-in-out infinite;
 }
 #history-list {
   list-style: none;
@@ -484,23 +505,43 @@ body.panel-collapsed #panel { right: -380px; }
   display: flex;
   align-items: baseline;
   justify-content: space-between;
-  padding: 22px 22px 16px;
+  padding: 28px 24px 20px;
   border-bottom: 1px solid var(--stroke);
+  position: relative;
+}
+#panel-header::before {
+  content: "";
+  position: absolute;
+  left: 24px;
+  right: 24px;
+  bottom: -1px;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--accent), transparent);
+  opacity: 0.5;
 }
 #panel-header h1 {
   margin: 0;
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-  color: var(--text-muted);
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  text-transform: none;
+  color: var(--text-strong);
+  background: linear-gradient(135deg, var(--text-strong) 0%, var(--accent-bright) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
 }
 #panel-count {
   font-size: 11px;
   color: var(--text-faint);
   font-variant-numeric: tabular-nums;
   font-family: "JetBrains Mono", monospace;
-  font-weight: 500;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: var(--r-pill);
+  background: var(--bg-elevated);
+  border: 1px solid var(--stroke);
+  letter-spacing: 0.04em;
 }
 
 #celeb-list {
