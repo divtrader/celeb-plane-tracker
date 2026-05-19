@@ -2,6 +2,7 @@ import { CELEBRITY_TAILS } from "./tails.js";
 import { AdsbLolAdapter } from "./adsb/adsblol.js";
 import { AMSTERDAM_ZONE, GeofenceTracker } from "./geofence.js";
 import { FlightStateTracker } from "./flightState.js";
+import { loadAirports, nearestAirport } from "./airports.js";
 import { Voice } from "./voice.js";
 import { Chime } from "./chime.js";
 
@@ -212,8 +213,12 @@ function showEventCard(evt) {
   card.className = `type-${evt.type}`;
   card.querySelector(".event-icon").textContent = EVENT_ICON[evt.type];
   card.querySelector(".event-title").textContent = evt.meta.name;
-  card.querySelector(".event-action").textContent = `${EVENT_LABEL[evt.type]} in a ${evt.meta.aircraft}`;
+  const action = evt.airport
+    ? `${EVENT_LABEL[evt.type]} ${evt.type === "takeoff" ? "from" : "at"} ${evt.airport.name} in a ${evt.meta.aircraft}`
+    : `${EVENT_LABEL[evt.type]} in a ${evt.meta.aircraft}`;
+  card.querySelector(".event-action").textContent = action;
   const stats = [evt.meta.reg];
+  if (evt.airport) stats.push(evt.airport.icao);
   const alt = fmtAlt(evt.ac?.alt);
   const spd = fmtSpeed(evt.ac?.speed);
   if (alt) stats.push(alt);
@@ -257,12 +262,19 @@ els.historyList.addEventListener("click", (e) => {
 setInterval(renderHistory, 30_000); // refresh "Xm ago" labels
 
 function fireEvent({ type, meta, ac }) {
-  console.log(`[ALERT ${type}]`, meta.name, meta.reg);
-  const evt = { type, meta, ac, at: Date.now() };
+  // Only takeoff/landing events have a meaningful "from/at airport" — at
+  // cruise altitude the nearest airport is misleading. Skip airport lookup
+  // entirely for zone-entry alerts.
+  const airport = (type === "takeoff" || type === "landing") && ac
+    ? nearestAirport(ac.lat, ac.lon)
+    : null;
+  const evt = { type, meta, ac, airport, at: Date.now() };
+  console.log(`[ALERT ${type}]`, meta.name, meta.reg, airport ? `@ ${airport.icao}` : "");
   eventHistory.unshift(evt);
   if (eventHistory.length > HISTORY_MAX) eventHistory.pop();
   showEventCard(evt);
   renderHistory();
+  return evt;
 }
 
 function pulseZone() {
@@ -300,14 +312,16 @@ const geofence = new GeofenceTracker(AMSTERDAM_ZONE, ({ reg, meta, zone }) => {
 
 const flightState = new FlightStateTracker({
   onTakeoff: ({ meta, ac }) => {
-    fireEvent({ type: "takeoff", meta, ac });
+    const evt = fireEvent({ type: "takeoff", meta, ac });
     chime.takeoff();
-    voice.speak(`${meta.name} just took off in a ${meta.aircraft}`);
+    const where = evt.airport ? ` from ${evt.airport.name}` : "";
+    voice.speak(`${meta.name} just took off${where} in a ${meta.aircraft}`);
   },
   onLanding: ({ meta, ac }) => {
-    fireEvent({ type: "landing", meta, ac });
+    const evt = fireEvent({ type: "landing", meta, ac });
     chime.landing();
-    voice.speak(`${meta.name} just landed in a ${meta.aircraft}`);
+    const where = evt.airport ? ` at ${evt.airport.name}` : "";
+    voice.speak(`${meta.name} just landed${where} in a ${meta.aircraft}`);
   },
 });
 
@@ -384,6 +398,7 @@ function start() {
   voice.unlock();
   chime.unlock();
   tryWakeLock();
+  loadAirports(); // fire-and-forget; first event in <60s, plenty of time
   pollOnce();
   setInterval(pollOnce, POLL_INTERVAL_MS);
 }
