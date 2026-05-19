@@ -56,11 +56,12 @@ const els = {
 const PANEL_COLLAPSED_KEY = "celeb-tracker.panelCollapsed";
 function applyPanelState(collapsed) {
   document.body.classList.toggle("panel-collapsed", collapsed);
-  // Belt-and-suspenders: set the transform inline too. The CSS rule
-  // body.panel-collapsed #panel { transform: translateX(100%) } *should*
-  // be enough, but on the user's tablet Chromium build it wasn't taking
-  // effect — likely a cached/parser quirk. Inline style wins regardless.
-  els.panel.style.transform = collapsed ? "translateX(100%)" : "translateX(0)";
+  // Two independent ways to push the panel off-screen — `right` and
+  // `transform`. The user's tablet Chromium build wasn't honoring
+  // transform alone, so we set both. Whichever the browser respects,
+  // the panel will hide.
+  els.panel.style.right = collapsed ? "-380px" : "0px";
+  els.panel.style.transform = collapsed ? "translateX(380px)" : "translateX(0px)";
   els.panelToggle.setAttribute("aria-label", collapsed ? "Show tracked list" : "Hide tracked list");
 }
 applyPanelState(localStorage.getItem(PANEL_COLLAPSED_KEY) === "1");
