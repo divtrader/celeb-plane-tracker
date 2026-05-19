@@ -314,7 +314,10 @@ function showEventCard(evt) {
   const card = els.eventCard;
   card.className = `type-${evt.type}`;
   card.querySelector(".event-icon").textContent = EVENT_ICON[evt.type];
-  card.querySelector(".event-title").textContent = evt.meta.name;
+  const title = evt.meta.descriptor
+    ? `${evt.meta.name} <span class="event-descriptor">— ${evt.meta.descriptor}</span>`
+    : evt.meta.name;
+  card.querySelector(".event-title").innerHTML = title;
   const action = evt.airport
     ? `${EVENT_LABEL[evt.type]} ${evt.type === "takeoff" ? "from" : "at"} ${evt.airport.name} in a ${evt.meta.aircraft}`
     : `${EVENT_LABEL[evt.type]} in a ${evt.meta.aircraft}`;
@@ -404,12 +407,16 @@ function pulseZone() {
   requestAnimationFrame(frame);
 }
 
+function named(meta) {
+  return meta.descriptor ? `${meta.name}, ${meta.descriptor},` : meta.name;
+}
+
 const geofence = new GeofenceTracker(AMSTERDAM_ZONE, ({ reg, meta, zone }) => {
   const ac = tailState.get(reg)?.ac ?? null;
   fireEvent({ type: "zone", meta, ac });
   pulseZone();
   chime.zoneEntry();
-  voice.speak(`${meta.name} just entered ${zone.name} in a ${meta.aircraft}`);
+  voice.speak(`${named(meta)} just entered ${zone.name} in a ${meta.aircraft}`);
 });
 
 const flightState = new FlightStateTracker({
@@ -417,13 +424,13 @@ const flightState = new FlightStateTracker({
     const evt = fireEvent({ type: "takeoff", meta, ac });
     chime.takeoff();
     const where = evt.airport ? ` from ${evt.airport.name}` : "";
-    voice.speak(`${meta.name} just took off${where} in a ${meta.aircraft}`);
+    voice.speak(`${named(meta)} just took off${where} in a ${meta.aircraft}`);
   },
   onLanding: ({ meta, ac }) => {
     const evt = fireEvent({ type: "landing", meta, ac });
     chime.landing();
     const where = evt.airport ? ` at ${evt.airport.name}` : "";
-    voice.speak(`${meta.name} just landed${where} in a ${meta.aircraft}`);
+    voice.speak(`${named(meta)} just landed${where} in a ${meta.aircraft}`);
   },
 });
 
