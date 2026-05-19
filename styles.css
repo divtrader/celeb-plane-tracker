@@ -277,7 +277,7 @@ body.panel-collapsed { --panel-offset: 0px; }
   cursor: pointer;
   flex-shrink: 0;
   transition: background 0.15s, border-color 0.15s;
-  max-width: 220px;
+  max-width: 300px;
 }
 .history-item:hover { background: rgba(88, 166, 255, 0.1); border-color: #30363d; }
 .history-item.unclickable { cursor: default; }

@@ -450,12 +450,11 @@ function renderPanel() {
       // We know origin (takeoff event or low-altitude spotting) but the
       // public route DB has no filed destination for this callsign —
       // typical for private jets.
-      const code = s.takeoffAirport.iata || s.takeoffAirport.icao;
-      const name = s.takeoffAirport.name || code;
+      const name = s.takeoffAirport.name || s.takeoffAirport.iata || s.takeoffAirport.icao;
       progressBar = `
         <div class="row-route-origin">
           <span class="row-origin-label">Departed from</span>
-          <span class="row-origin-name"><span class="row-origin-code">${code}</span> · ${name}</span>
+          <span class="row-origin-name">${name}</span>
         </div>
         <div class="row-route-origin row-route-dest-unknown">
           <span class="row-origin-label">Heading to</span>
@@ -558,8 +557,10 @@ function showEventCard(evt) {
     ? `${EVENT_LABEL[evt.type]} ${evt.type === "takeoff" ? "from" : "at"} ${evt.airport.name} in a ${evt.meta.aircraft}`
     : `${EVENT_LABEL[evt.type]} in a ${evt.meta.aircraft}`;
   card.querySelector(".event-action").textContent = action;
+  // The airport name is already in the action line above; the stats
+  // line stays purely technical (reg + altitude + speed) so we don't
+  // surface raw ICAO codes anywhere user-visible.
   const stats = [evt.meta.reg];
-  if (evt.airport) stats.push(evt.airport.icao);
   const alt = fmtAlt(evt.ac?.alt);
   const spd = fmtSpeed(evt.ac?.speed);
   if (alt) stats.push(alt);
@@ -577,12 +578,19 @@ function renderHistory() {
   }
   els.historyList.innerHTML = eventHistory.map((e, i) => {
     const clickable = e.ac && typeof e.ac.lat === "number" ? "" : "unclickable";
+    // Spell out the airport name in the meta line so the strip reads
+    // "Drake — Took off from Teterboro · 2m ago" instead of just
+    // "Took off · 2m ago" with no location context.
+    const where = e.airport
+      ? (e.type === "takeoff" ? ` from ${e.airport.name}` :
+         e.type === "landing" ? ` at ${e.airport.name}` : "")
+      : "";
     return `
       <li class="history-item type-${e.type} ${clickable}" data-idx="${i}">
         <span class="history-icon">${EVENT_ICON[e.type]}</span>
         <div class="history-text">
           <div class="history-name">${e.meta.name}</div>
-          <div class="history-meta">${EVENT_LABEL[e.type]} · ${timeAgo(e.at)}</div>
+          <div class="history-meta">${EVENT_LABEL[e.type]}${where} · ${timeAgo(e.at)}</div>
         </div>
       </li>`;
   }).join("");
