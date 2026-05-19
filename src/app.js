@@ -45,7 +45,25 @@ const els = {
   historyList: document.getElementById("history-list"),
   pollProgress: document.getElementById("poll-progress"),
   pollStats: document.getElementById("poll-stats"),
+  panelToggle: document.getElementById("panel-toggle"),
 };
+
+// Pull-tab collapse: slides the panel off-screen so the user sees the
+// whole map. The tab parks at the viewport's right edge while collapsed
+// so it can be pulled back. State persists in localStorage.
+const PANEL_COLLAPSED_KEY = "celeb-tracker.panelCollapsed";
+function applyPanelState(collapsed) {
+  document.body.classList.toggle("panel-collapsed", collapsed);
+  els.panelToggle.setAttribute("aria-label", collapsed ? "Show tracked list" : "Hide tracked list");
+}
+applyPanelState(localStorage.getItem(PANEL_COLLAPSED_KEY) === "1");
+els.panelToggle.addEventListener("click", () => {
+  const next = !document.body.classList.contains("panel-collapsed");
+  applyPanelState(next);
+  localStorage.setItem(PANEL_COLLAPSED_KEY, next ? "1" : "0");
+  // Leaflet needs to know about the container resize after the slide.
+  setTimeout(() => map.invalidateSize(), 340);
+});
 
 // Live per-sweep counters surfaced in the HUD. Helps debug rate-limit
 // issues and gives the kiosk something to watch between events.
@@ -122,6 +140,7 @@ L.circle([AMSTERDAM_ZONE.center.lat, AMSTERDAM_ZONE.center.lon], {
 
 const trailLayer = L.layerGroup().addTo(map);
 const markers = new Map(); // reg -> { marker, trail, positions[], inZone }
+const originMarkers = new Map(); // reg -> Leaflet circleMarker at origin airport
 
 const PLANE_SVG = `<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet"><path d="M12 1.5 L13 10 L22 12.5 L22 13.6 L13 13.2 L13 17.5 L16.5 18.8 L16.5 19.6 L13 19.2 L12 21.5 L11 19.2 L7.5 19.6 L7.5 18.8 L11 17.5 L11 13.2 L2 13.6 L2 12.5 L11 10 Z"/></svg>`;
 
@@ -142,13 +161,18 @@ function labelHtml(meta, ac) {
 }
 
 // The flown path: every observed position, prefixed by the origin
-// airport (a dashed segment) when we know it. That way the trail shows
-// the full journey even when we tune in mid-flight.
+// airport so the trail shows the full journey from takeoff onward. We
+// prefer adsbdb's filed origin (commercial routes), fall back to the
+// airport we detected from the takeoff position.
+function trailOrigin(reg) {
+  const state = tailState.get(reg);
+  return state?.route?.origin ?? state?.takeoffAirport ?? null;
+}
+
 function trailLatLngs(reg) {
   const entry = markers.get(reg);
   if (!entry) return [];
-  const state = tailState.get(reg);
-  const origin = state?.route?.origin;
+  const origin = trailOrigin(reg);
   return origin
     ? [[origin.lat, origin.lon], ...entry.positions]
     : entry.positions.slice();
@@ -157,6 +181,37 @@ function trailLatLngs(reg) {
 function refreshTrail(reg) {
   const entry = markers.get(reg);
   if (entry) entry.trail.setLatLngs(trailLatLngs(reg));
+  refreshOriginMarker(reg);
+}
+
+function refreshOriginMarker(reg) {
+  const origin = trailOrigin(reg);
+  let dot = originMarkers.get(reg);
+  if (origin && markers.has(reg)) {
+    if (!dot) {
+      dot = L.circleMarker([origin.lat, origin.lon], {
+        radius: 5,
+        weight: 2,
+        color: "#79c0ff",
+        fillColor: "#1f6feb",
+        fillOpacity: 0.7,
+        interactive: false,
+      }).addTo(trailLayer);
+      dot.bindTooltip(origin.name || origin.icao || "Origin", {
+        permanent: false,
+        direction: "top",
+        offset: [0, -6],
+        className: "plane-label",
+      });
+      originMarkers.set(reg, dot);
+    } else {
+      dot.setLatLng([origin.lat, origin.lon]);
+      dot.setTooltipContent(origin.name || origin.icao || "Origin");
+    }
+  } else if (dot) {
+    trailLayer.removeLayer(dot);
+    originMarkers.delete(reg);
+  }
 }
 
 function upsertMarker(reg, ac, meta, inZone) {
@@ -166,10 +221,13 @@ function upsertMarker(reg, ac, meta, inZone) {
     const marker = L.marker(latlng, { icon: planeIcon(ac.track, inZone) }).addTo(map);
     const trail = L.polyline([latlng], {
       color: "#58a6ff",
-      weight: 2.5,
-      opacity: 0.55,
-      smoothFactor: 1.5,
+      weight: 3,
+      opacity: 0.8,
+      smoothFactor: 1.2,
+      lineCap: "round",
+      lineJoin: "round",
       interactive: false,
+      className: "plane-beam",
     }).addTo(trailLayer);
     marker.bindTooltip(labelHtml(meta, ac), {
       permanent: true,
@@ -197,6 +255,11 @@ function removeMarker(reg) {
   map.removeLayer(entry.marker);
   trailLayer.removeLayer(entry.trail);
   markers.delete(reg);
+  const dot = originMarkers.get(reg);
+  if (dot) {
+    trailLayer.removeLayer(dot);
+    originMarkers.delete(reg);
+  }
 }
 
 function setStatus(state, text) {
@@ -256,6 +319,15 @@ function renderPanel() {
           <span class="row-route-iata">${destCode}</span>
         </div>
         <div class="row-route-names">${origName} <span class="row-arrow">→</span> ${destName}</div>`;
+    } else if (s.takeoffAirport && ac) {
+      // We saw the takeoff so we know origin, but no filed destination.
+      const code = s.takeoffAirport.iata || s.takeoffAirport.icao;
+      const name = s.takeoffAirport.name || code;
+      progressBar = `
+        <div class="row-route-origin">
+          <span class="row-origin-label">Departed from</span>
+          <span class="row-origin-name"><span class="row-origin-code">${code}</span> · ${name}</span>
+        </div>`;
     } else if (ac && typeof ac.alt === "number") {
       const altPct = Math.max(3, Math.min(100, (ac.alt / 45_000) * 100));
       progressBar = `<div class="row-altbar" title="Altitude only — no route available"><div class="row-altbar-fill" style="width: ${altPct}%"></div></div>`;
@@ -411,6 +483,17 @@ function named(meta) {
   return meta.descriptor ? `${meta.name}, ${meta.descriptor},` : meta.name;
 }
 
+// Wait at most `timeoutMs` for the route lookup; if it doesn't resolve
+// in time, announce without the destination. Private-jet callsigns
+// usually aren't in adsbdb so this race short-circuits cleanly.
+function raceForRoute(callsign, timeoutMs = 1500) {
+  if (!callsign) return Promise.resolve(null);
+  return Promise.race([
+    routeFor(callsign).catch(() => null),
+    new Promise((r) => setTimeout(() => r(null), timeoutMs)),
+  ]);
+}
+
 const geofence = new GeofenceTracker(AMSTERDAM_ZONE, ({ reg, meta, zone }) => {
   const ac = tailState.get(reg)?.ac ?? null;
   fireEvent({ type: "zone", meta, ac });
@@ -423,12 +506,24 @@ const flightState = new FlightStateTracker({
   onTakeoff: ({ meta, ac }) => {
     const evt = fireEvent({ type: "takeoff", meta, ac });
     chime.takeoff();
-    const where = evt.airport ? ` from ${evt.airport.name}` : "";
-    voice.speak(`${named(meta)} just took off${where} in a ${meta.aircraft}`);
+    // Remember the takeoff airport on the tail's state — drives the
+    // "Departed from X" line in the panel when no full route is known.
+    const state = tailState.get(meta.reg.toUpperCase());
+    if (state && evt.airport) state.takeoffAirport = evt.airport;
+    refreshTrail(meta.reg.toUpperCase());
+    renderPanel();
+
+    raceForRoute(ac.flight).then((route) => {
+      const from = evt.airport ? ` from ${evt.airport.name}` : "";
+      const to   = route?.destination?.name ? ` heading to ${route.destination.name}` : "";
+      voice.speak(`${named(meta)} just took off${from}${to} in a ${meta.aircraft}`);
+    });
   },
   onLanding: ({ meta, ac }) => {
     const evt = fireEvent({ type: "landing", meta, ac });
     chime.landing();
+    const state = tailState.get(meta.reg.toUpperCase());
+    if (state) state.takeoffAirport = null;
     const where = evt.airport ? ` at ${evt.airport.name}` : "";
     voice.speak(`${named(meta)} just landed${where} in a ${meta.aircraft}`);
   },
@@ -481,6 +576,7 @@ async function pollOnce() {
         state.ac = ac;
         state.inZone = false;
         state.route = undefined;
+        state.takeoffAirport = null;
       } else {
         airborne++;
         state.ac = ac;
@@ -503,6 +599,7 @@ async function pollOnce() {
       state.ac = null;
       state.inZone = false;
       state.route = undefined;
+      state.takeoffAirport = null;
     }
   }
 

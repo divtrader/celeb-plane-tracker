@@ -9,13 +9,20 @@ html, body {
   color: #e6edf3;
 }
 
+/* Panel width is animated via --panel-offset so the map + history strip
+   shrink/grow in lockstep with the panel slide. Collapsed = panel hidden,
+   only the pull-tab visible on the right edge. */
+:root { --panel-offset: 360px; }
+body.panel-collapsed { --panel-offset: 0px; }
+
 #map {
   position: absolute;
   top: 0;
   bottom: 96px;
   left: 0;
-  right: 360px;
+  right: var(--panel-offset);
   background: #0b0f14;
+  transition: right 0.32s cubic-bezier(0.2, 0.9, 0.3, 1);
 }
 
 #hud {
@@ -218,7 +225,7 @@ html, body {
 #history {
   position: absolute;
   left: 0;
-  right: 360px;
+  right: var(--panel-offset);
   bottom: 0;
   height: 96px;
   background: rgba(13, 17, 23, 0.95);
@@ -227,6 +234,7 @@ html, body {
   flex-direction: column;
   z-index: 800;
   backdrop-filter: blur(8px);
+  transition: right 0.32s cubic-bezier(0.2, 0.9, 0.3, 1);
 }
 #history-header {
   padding: 8px 16px 4px;
@@ -311,6 +319,11 @@ html, body {
   stroke-width: 0.6;
   stroke-linejoin: round;
 }
+
+/* Trail acts as a glowing beam from origin airport to plane. */
+.plane-beam {
+  filter: drop-shadow(0 0 6px rgba(88, 166, 255, 0.55));
+}
 .plane-icon.in-zone path {
   fill: #f0883e;
 }
@@ -345,7 +358,62 @@ html, body {
   flex-direction: column;
   z-index: 900;
   backdrop-filter: blur(8px);
+  transform: translateX(0);
+  transition: transform 0.32s cubic-bezier(0.2, 0.9, 0.3, 1);
 }
+body.panel-collapsed #panel { transform: translateX(100%); }
+
+/* Pull-tab on the panel's left edge. Slides with the panel — when the
+   panel hides, the tab parks itself at the viewport right edge so the
+   user can pull the panel back. */
+#panel-toggle {
+  position: absolute;
+  top: 50%;
+  left: -26px;
+  width: 26px;
+  height: 64px;
+  margin: 0;
+  padding: 0;
+  transform: translateY(-50%);
+  background: rgba(13, 17, 23, 0.95);
+  border: 1px solid #30363d;
+  border-right: none;
+  border-radius: 10px 0 0 10px;
+  color: #c9d1d9;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 901;
+  box-shadow: -6px 0 18px rgba(0, 0, 0, 0.4);
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  transition: background 0.18s, color 0.18s;
+}
+#panel-toggle:hover,
+#panel-toggle:active { background: #21262d; color: #fff; }
+#panel-toggle:focus-visible { outline: 2px solid #58a6ff; outline-offset: 2px; }
+
+/* Grabber strip — three soft dots, just enough to read as "draggable" */
+#panel-toggle::before {
+  content: "";
+  position: absolute;
+  left: 8px;
+  top: 50%;
+  width: 2px;
+  height: 18px;
+  background:
+    radial-gradient(circle at center, #484f58 1px, transparent 1.6px) 0 0 / 2px 6px no-repeat,
+    radial-gradient(circle at center, #484f58 1px, transparent 1.6px) 0 6px / 2px 6px no-repeat,
+    radial-gradient(circle at center, #484f58 1px, transparent 1.6px) 0 12px / 2px 6px no-repeat;
+}
+
+#panel-toggle svg {
+  margin-left: 4px;
+  transition: transform 0.32s cubic-bezier(0.2, 0.9, 0.3, 1);
+}
+body.panel-collapsed #panel-toggle svg { transform: rotate(180deg); }
+body.panel-collapsed #panel-toggle { left: -26px; }
 
 #panel-header {
   display: flex;
@@ -510,22 +578,54 @@ html, body {
 .phase-ground .row-route,
 .phase-nosignal .row-route { display: none; }
 
-/* Full airport names under the IATA bar — small, dimmed, single line. */
+/* Full airport names under the IATA bar — small, readable single line. */
 .row-route-names {
   grid-column: 2 / span 2;
-  font-size: 11px;
-  color: #8b949e;
-  margin-top: 3px;
+  font-size: 12px;
+  color: #c9d1d9;
+  margin-top: 4px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 .row-route-names .row-arrow {
   margin: 0 6px;
-  color: #6e7681;
+  color: #58a6ff;
+  font-weight: 600;
 }
 .phase-ground .row-route-names,
 .phase-nosignal .row-route-names { display: none; }
+
+/* "Departed from X" fallback — shown when we know the takeoff airport
+   but no destination (most private jets, since adsbdb only has filed
+   commercial routes). */
+.row-route-origin {
+  grid-column: 2 / span 2;
+  margin-top: 6px;
+  font-size: 12px;
+  color: #c9d1d9;
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  overflow: hidden;
+}
+.row-origin-label {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #6e7681;
+  flex-shrink: 0;
+}
+.row-origin-name {
+  color: #c9d1d9;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.row-origin-name .row-origin-code { color: #58a6ff; font-weight: 600; }
+.phase-ground .row-route-origin,
+.phase-nosignal .row-route-origin { display: none; }
 
 .uncertain-badge {
   display: inline-block;
