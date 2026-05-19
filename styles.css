@@ -392,6 +392,31 @@ html, body {
 }
 .row-stats .stat-empty { color: #484f58; }
 
+/* Altitude progress bar — visual indicator of flight phase.
+   Full = high cruise (~45000 ft), empty = ground level. */
+.row-altbar {
+  grid-column: 2 / span 2;
+  height: 4px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 2px;
+  overflow: hidden;
+  margin-top: 4px;
+  position: relative;
+}
+.row-altbar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #1f6feb, #58a6ff 60%, #79c0ff);
+  transition: width 0.8s cubic-bezier(0.4, 0.0, 0.2, 1);
+  box-shadow: 0 0 6px rgba(88, 166, 255, 0.5);
+  border-radius: 2px;
+}
+.phase-zone .row-altbar-fill {
+  background: linear-gradient(90deg, #bb5018, #f0883e 60%, #ffa657);
+  box-shadow: 0 0 6px rgba(240, 136, 62, 0.6);
+}
+.phase-ground .row-altbar,
+.phase-nosignal .row-altbar { display: none; }
+
 .uncertain-badge {
   display: inline-block;
   margin-left: 6px;

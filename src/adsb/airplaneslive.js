@@ -10,10 +10,16 @@ export class AirplanesLiveAdapter {
   }
 
   async fetchByRegistration(reg) {
-    const res = await this.fetch(`${BASE}/reg/${encodeURIComponent(reg)}`, {
-      headers: { Accept: "application/json" },
-    });
-    if (!res.ok) throw new Error(`airplanes.live ${res.status} for ${reg}`);
+    return this._fetch(`${BASE}/reg/${encodeURIComponent(reg)}`, reg);
+  }
+
+  async fetchByIcao(hex) {
+    return this._fetch(`${BASE}/hex/${encodeURIComponent(hex.toLowerCase())}`, null);
+  }
+
+  async _fetch(url, fallbackReg) {
+    const res = await this.fetch(url, { headers: { Accept: "application/json" } });
+    if (!res.ok) throw new Error(`airplanes.live ${res.status}`);
     const data = await res.json();
     const ac = Array.isArray(data?.ac) ? data.ac[0] : null;
     if (!ac || typeof ac.lat !== "number" || typeof ac.lon !== "number") return null;
@@ -24,7 +30,7 @@ export class AirplanesLiveAdapter {
                  : null;
 
     return {
-      reg,
+      reg: ac.r ?? fallbackReg ?? null,
       icao: ac.hex ?? null,
       lat: ac.lat,
       lon: ac.lon,

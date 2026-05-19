@@ -160,6 +160,12 @@ function renderPanel() {
       : `<span>${alt ?? '<span class="stat-empty">—</span>'}</span><span>${spd ?? '<span class="stat-empty">—</span>'}</span>`;
     const uncertain = meta.uncertain ? `<span class="uncertain-badge" title="Tail unverified — curate before trusting">?</span>` : "";
     const clickable = ac && !ac.onGround ? "" : "unclickable";
+    // Altitude bar: 0 → 45000 ft maps to 0–100%. Clamps at extremes so
+    // we never overflow the track.
+    const altPct = ac && typeof ac.alt === "number"
+      ? Math.max(3, Math.min(100, (ac.alt / 45_000) * 100))
+      : 0;
+    const altBar = `<div class="row-altbar"><div class="row-altbar-fill" style="width: ${altPct}%"></div></div>`;
     return `
       <li class="celeb-row phase-${phase} ${clickable}" data-reg="${meta.reg.toUpperCase()}">
         <span class="row-dot"></span>
@@ -167,6 +173,7 @@ function renderPanel() {
         <span class="row-phase">${PHASE_LABEL[phase]}</span>
         <div class="row-meta">${meta.reg} · ${meta.aircraft}</div>
         <div class="row-stats">${stats}</div>
+        ${altBar}
       </li>`;
   }).join("");
 
@@ -337,7 +344,9 @@ async function pollOnce() {
   for (const tail of CELEBRITY_TAILS) {
     const reg = tail.reg.toUpperCase();
     try {
-      const ac = await adsb.fetchByRegistration(reg);
+      const ac = tail.icao
+        ? await adsb.fetchByIcao(tail.icao)
+        : await adsb.fetchByRegistration(reg);
       const state = tailState.get(reg);
       state.updatedAt = Date.now();
       if (ac) {
