@@ -64,6 +64,14 @@ document.addEventListener("keydown", (e) => {
     els.menuBtn.click();
   }
 });
+// Tap-outside-to-close — expected gesture on touch devices where Escape
+// isn't reachable. Skip when the tap is inside the panel or on the
+// burger button itself.
+document.addEventListener("click", (e) => {
+  if (!els.panel.classList.contains("open")) return;
+  if (e.target.closest("#panel") || e.target.closest("#menu-btn")) return;
+  els.menuBtn.click();
+});
 
 // Live per-sweep counters surfaced in the HUD. Helps debug rate-limit
 // issues and gives the kiosk something to watch between events.

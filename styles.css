@@ -346,27 +346,42 @@ html, body {
 }
 #panel.open { transform: translateX(0); }
 
-/* Hamburger button — floats top-right, animates into an X when open. */
+/* Hamburger button — floats top-right, animates into an X when open.
+   Tuned for touch: 48px target, solid fallback background (no reliance
+   on backdrop-filter), translateY-based animation for smooth tablet
+   rendering, manipulation-only touch-action to skip the 300ms delay. */
 #menu-btn {
   position: absolute;
   top: 12px;
   right: 12px;
   z-index: 1100;
-  width: 44px;
-  height: 44px;
-  background: rgba(13, 17, 23, 0.88);
+  width: 48px;
+  height: 48px;
+  background: #161b22;
   border: 1px solid #30363d;
-  border-radius: 10px;
+  border-radius: 12px;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  backdrop-filter: blur(8px);
-  transition: background 0.2s, border-color 0.2s, box-shadow 0.2s;
   padding: 0;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  transition: background 0.2s, border-color 0.2s, box-shadow 0.2s;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
 }
-#menu-btn:hover {
-  background: rgba(33, 38, 45, 0.95);
+/* Add the glass effect only where supported; the solid bg above is the
+   fallback for browsers like older ChromeOS / Android WebView builds. */
+@supports ((backdrop-filter: blur(8px)) or (-webkit-backdrop-filter: blur(8px))) {
+  #menu-btn {
+    background: rgba(22, 27, 34, 0.78);
+    -webkit-backdrop-filter: blur(8px);
+    backdrop-filter: blur(8px);
+  }
+}
+#menu-btn:hover,
+#menu-btn:active {
+  background: #21262d;
   border-color: #484f58;
 }
 #menu-btn:focus-visible {
@@ -377,43 +392,50 @@ html, body {
 .menu-icon {
   position: relative;
   display: block;
-  width: 20px;
-  height: 14px;
+  width: 22px;
+  height: 16px;
+  flex-shrink: 0;
 }
 .menu-icon > span {
   position: absolute;
   left: 0;
   width: 100%;
-  height: 2px;
-  background: #c9d1d9;
+  height: 3px;
+  background: #e6edf3;
   border-radius: 2px;
-  transition: top 0.25s ease, transform 0.25s ease, opacity 0.15s ease;
+  top: 50%;
+  margin-top: -1.5px;
+  transform-origin: 50% 50%;
+  transition: transform 0.25s ease, opacity 0.18s ease;
+  will-change: transform;
 }
-.menu-icon > span:nth-child(1) { top: 0; }
-.menu-icon > span:nth-child(2) { top: 6px; }
-.menu-icon > span:nth-child(3) { top: 12px; }
+.menu-icon > span:nth-child(1) { transform: translateY(-7px); }
+.menu-icon > span:nth-child(2) { transform: translateY(0); }
+.menu-icon > span:nth-child(3) { transform: translateY(7px); }
 
-#menu-btn.open .menu-icon > span:nth-child(1) { top: 6px; transform: rotate(45deg); }
-#menu-btn.open .menu-icon > span:nth-child(2) { opacity: 0; }
-#menu-btn.open .menu-icon > span:nth-child(3) { top: 6px; transform: rotate(-45deg); }
+#menu-btn.open .menu-icon > span:nth-child(1) { transform: translateY(0) rotate(45deg); }
+#menu-btn.open .menu-icon > span:nth-child(2) { transform: scaleX(0); opacity: 0; }
+#menu-btn.open .menu-icon > span:nth-child(3) { transform: translateY(0) rotate(-45deg); }
 
 .menu-badge {
   position: absolute;
-  top: -5px;
-  right: -5px;
-  min-width: 20px;
-  height: 20px;
-  border-radius: 10px;
+  top: -6px;
+  right: -6px;
+  min-width: 22px;
+  height: 22px;
+  border-radius: 11px;
   background: #1f6feb;
   color: #fff;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
+  line-height: 1;
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 0 6px;
   box-shadow: 0 0 0 2px #0b0f14, 0 0 10px rgba(31, 111, 235, 0.5);
+  pointer-events: none;
 }
 .menu-badge.hidden { display: none; }
 .menu-badge.zone {
