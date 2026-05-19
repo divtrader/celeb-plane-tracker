@@ -8,11 +8,11 @@ import { Voice } from "./voice.js";
 import { Chime } from "./chime.js";
 
 const POLL_INTERVAL_MS = 60_000;
-// airplanes.live rate-limits at ~1 request/second. With 56 tails this means
-// a full sweep takes ~56s, which fits inside the 60s poll window. The poll
-// loop is also self-chained (see pollLoop below) so a slow sweep never
-// overlaps with the next one.
-const REQUEST_SPACING_MS = 1000;
+// airplanes.live rate-limits at ~1 request/second with a small burst bucket.
+// 1500ms spacing gives a margin against bursts; 56 tails × 1.5s = 84s per
+// sweep. Combined with self-chained pollLoop, sweeps never overlap and the
+// long-term steady-state stays well under the rate limit.
+const REQUEST_SPACING_MS = 1500;
 
 const EUROPE_CENTER = [50.5, 8.0];
 const EUROPE_ZOOM = 5;
@@ -482,8 +482,11 @@ async function pollOnce() {
   els.airborneCount.textContent = String(airborne);
   els.lastUpdate.textContent = `Updated ${new Date().toLocaleTimeString()}`;
 
-  if (sweep.rate > 0) {
-    setStatus("err", "Rate-limited — cooling down");
+  if (sweep.rate > 5 && sweep.ok === 0) {
+    // Likely a Cloudflare IP throttle — needs human-scale cooldown.
+    setStatus("err", "Cloudflare cooldown (5–30 min)");
+  } else if (sweep.rate > 0) {
+    setStatus("err", "Rate-limited — backing off");
   } else if (sweep.err === 0) {
     setStatus("ok", "Live");
   } else if (sweep.err < CELEBRITY_TAILS.length) {
@@ -531,7 +534,11 @@ async function pollLoop() {
     console.error("[pollLoop]", err);
   }
   // Longer cooldown when rate-limited so Cloudflare's bucket refills.
-  const wait = sweep.rate > 0 ? POLL_INTERVAL_MS * 2 : POLL_INTERVAL_MS;
+  // A heavy throttle (no successes + many rate-limits) usually means the
+  // IP is in a 5–30 min Cloudflare block, so cool off for 5 min.
+  let wait = POLL_INTERVAL_MS;
+  if (sweep.rate > 5 && sweep.ok === 0) wait = 5 * 60_000;
+  else if (sweep.rate > 0)              wait = POLL_INTERVAL_MS * 2;
   startCountdown(Math.round(wait / 1000));
   setTimeout(pollLoop, wait);
 }

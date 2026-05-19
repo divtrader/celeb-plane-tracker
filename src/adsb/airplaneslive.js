@@ -18,7 +18,18 @@ export class AirplanesLiveAdapter {
   }
 
   async _fetch(url, fallbackReg) {
-    const res = await this.fetch(url, { headers: { Accept: "application/json" } });
+    let res;
+    try {
+      res = await this.fetch(url, { headers: { Accept: "application/json" } });
+    } catch (e) {
+      // Cloudflare strips CORS headers on rate-limited / error responses,
+      // which the browser then surfaces as a generic TypeError without any
+      // status code. Treat these as rate-limited — that's the only common
+      // cause once we know the API normally sends CORS headers on success.
+      const err = new Error(`network/CORS error (likely Cloudflare throttle): ${e.message}`);
+      err.rateLimited = true;
+      throw err;
+    }
     if (res.status === 429) {
       const err = new Error("rate-limited (HTTP 429)");
       err.status = 429;
