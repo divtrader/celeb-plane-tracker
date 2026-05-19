@@ -535,7 +535,16 @@ function flyToEvent(ac) {
 }
 const HISTORY_MAX = 20;
 // Seeded from localStorage so the activity strip survives page reloads.
-const eventHistory = [...persisted.history];
+// Also deduped: keep only the latest "spotted" entry per celebrity so
+// repeated reloads while a celeb is airborne don't pile up duplicates.
+const seenSpotted = new Set();
+const eventHistory = persisted.history.filter((e) => {
+  if (e.type !== "spotted") return true;
+  const key = e.meta?.reg;
+  if (!key || seenSpotted.has(key)) return false;
+  seenSpotted.add(key);
+  return true;
+});
 
 function timeAgo(ts) {
   const s = Math.floor((Date.now() - ts) / 1000);
@@ -630,6 +639,33 @@ function fireEvent({ type, meta, ac }) {
   if (type !== "spotted") flyToEvent(ac);
   return evt;
 }
+
+// Persist the FlightStateTracker so on reload we don't re-fire
+// "spotted" for celebs we've already seen this hour. 5-minute freshness
+// window so an old saved state can't cause spurious takeoff/landing
+// transitions on a much-later reopen.
+const FLIGHT_STATE_KEY = "celeb-tracker.flightState-v1";
+const FLIGHT_STATE_FRESH_MS = 30 * 60_000; // 30 min
+
+function loadFlightState() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(FLIGHT_STATE_KEY) || "null");
+    if (!raw?.savedAt || Date.now() - raw.savedAt > FLIGHT_STATE_FRESH_MS) return;
+    for (const [reg, phase] of Object.entries(raw.state || {})) {
+      flightState.state.set(reg, { phase, primed: true });
+    }
+  } catch {}
+}
+function saveFlightState() {
+  try {
+    const state = {};
+    for (const [reg, entry] of flightState.state.entries()) {
+      state[reg] = entry.phase;
+    }
+    localStorage.setItem(FLIGHT_STATE_KEY, JSON.stringify({ savedAt: Date.now(), state }));
+  } catch {}
+}
+loadFlightState();
 
 function saveTrails() {
   try {
@@ -838,6 +874,7 @@ async function pollOnce() {
   els.lastUpdate.textContent = `Updated ${new Date().toLocaleTimeString()}`;
   renderPanel();
   saveTrails();
+  saveFlightState();
 
   if (sweep.rate > 0) setStatus("err", "Rate-limited — backing off");
   else if (sweep.err > 0) setStatus("err", "Source unreachable");
