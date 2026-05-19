@@ -12,8 +12,8 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=3" />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css?v=4" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://unpkg.com/@joergdietrich/leaflet.terminator@1.1.0/L.Terminator.js"></script>
   <script src="https://unpkg.com/satellite.js@5.0.0/dist/satellite.min.js"></script>
@@ -23,14 +23,24 @@
   <div id="map"></div>
 
   <div id="hud">
+    <div id="hud-corner-tl"></div><div id="hud-corner-tr"></div>
+    <div id="hud-corner-bl"></div><div id="hud-corner-br"></div>
+    <div id="hud-header">
+      <span class="hud-label">SKYCONTROL</span>
+      <span id="mission-time" class="hud-time">00:00:00Z</span>
+    </div>
     <div id="status">
       <span id="status-dot" class="dot dot-idle"></span>
-      <span id="status-text">Idle</span>
+      <span id="status-text">Standby</span>
     </div>
     <div id="poll-progress"></div>
     <div id="poll-stats"></div>
     <div id="counts">
-      <span id="tracked-count">0</span> tracked · <span id="airborne-count">0</span> airborne
+      <span class="hud-label-inline">Targets</span>
+      <span id="tracked-count">0</span>
+      <span class="hud-sep">/</span>
+      <span id="airborne-count">0</span>
+      <span class="hud-label-inline">airborne</span>
     </div>
     <div id="last-update">—</div>
   </div>

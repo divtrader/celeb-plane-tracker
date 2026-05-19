@@ -50,7 +50,20 @@ const els = {
   pollStats: document.getElementById("poll-stats"),
   panelToggle: document.getElementById("panel-toggle"),
   panel: document.getElementById("panel"),
+  missionTime: document.getElementById("mission-time"),
 };
+
+// Live UTC mission clock — updates every second.
+function tickMissionTime() {
+  if (!els.missionTime) return;
+  const d = new Date();
+  const hh = String(d.getUTCHours()).padStart(2, "0");
+  const mm = String(d.getUTCMinutes()).padStart(2, "0");
+  const ss = String(d.getUTCSeconds()).padStart(2, "0");
+  els.missionTime.textContent = `${hh}:${mm}:${ss}Z`;
+}
+tickMissionTime();
+setInterval(tickMissionTime, 1000);
 
 // Pull-tab collapse: slides the panel off-screen so the user sees the
 // whole map. The tab parks at the viewport's right edge while collapsed
