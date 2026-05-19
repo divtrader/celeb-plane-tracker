@@ -6,7 +6,7 @@ import { FlightStateTracker } from "./flightState.js";
 import { loadAirports, nearestAirport } from "./airports.js";
 import { lookupRoute, computeProgress } from "./routes.js";
 import { prefetchPortraits, getPortrait } from "./portraits.js";
-import { fetchPosition as fetchIssPosition, initOrbit as initIssOrbit, allPasses as allIssPasses } from "./iss.js";
+import { fetchPosition as fetchIssPosition, initOrbit as initIssOrbit, allPasses as allIssPasses, currentPosition as currentIssPosition } from "./iss.js";
 import { loadCloudForecast, cloudCoverAt } from "./weather.js";
 import { Voice } from "./voice.js";
 import { Chime } from "./chime.js";
@@ -920,19 +920,41 @@ const issState = {
   marker: null,
   footprint: null,
   position: null,
+  visibility: null,      // "daylight" | "eclipsed" — from wheretheiss.at API
+  footprintKm: null,     // refreshed less often than position
   passes: [],            // upcoming, enriched with sun + cloud info
-  announcedPeaks: new Set(), // peakMs values we've already voice-alerted for
+  announcedPeaks: new Set(), // peakMs values + milestone keys already alerted
 };
 const issEls = {
   card: document.getElementById("iss-card"),
   loc:  document.querySelector("#iss-card .iss-location"),
   pass: document.querySelector("#iss-card .iss-pass"),
 };
+// Custom SVG silhouette of the ISS — solar panels + central truss +
+// blinking light. Sits inside an outer glow ring so it reads as
+// "spacecraft" at any zoom level.
 const ISS_ICON = L.divIcon({
   className: "iss-marker",
-  html: `<div class="iss-marker-inner">🛰️</div>`,
-  iconSize: [36, 36],
-  iconAnchor: [18, 18],
+  html: `
+    <div class="iss-marker-glow"></div>
+    <svg class="iss-svg" viewBox="0 0 56 56" aria-hidden="true">
+      <g class="iss-panels">
+        <rect x="2"  y="22" width="14" height="6" rx="0.6"/>
+        <rect x="40" y="22" width="14" height="6" rx="0.6"/>
+        <rect x="2"  y="10" width="14" height="6" rx="0.6"/>
+        <rect x="40" y="10" width="14" height="6" rx="0.6"/>
+        <rect x="2"  y="34" width="14" height="6" rx="0.6"/>
+        <rect x="40" y="34" width="14" height="6" rx="0.6"/>
+      </g>
+      <g class="iss-truss">
+        <rect x="16" y="24" width="24" height="3"/>
+        <rect x="24" y="14" width="8"  height="24" rx="1.4"/>
+        <rect x="22" y="24" width="12" height="4"  rx="1"/>
+      </g>
+      <circle class="iss-beacon" cx="28" cy="25.5" r="2.6"/>
+    </svg>`,
+  iconSize: [56, 56],
+  iconAnchor: [28, 28],
 });
 const ISS_OBSERVER = { lat: AMSTERDAM_ZONE.center.lat, lon: AMSTERDAM_ZONE.center.lon };
 const ISS_PASS_ALERT_LEAD_MS = 5 * 60_000; // voice alert 5 min before peak
@@ -1014,30 +1036,46 @@ function renderIssCard() {
     `<div class="iss-pass-header">Upcoming Amsterdam passes</div><ol class="iss-pass-list">${rows}</ol>`;
 }
 
-async function refreshIssPosition() {
+// Cheap, synchronous 1 Hz tick that recomputes ISS position from the
+// cached TLE — no API call, ISS moves smoothly across the map between
+// the slower API refreshes.
+function tickIssPosition() {
+  const p = currentIssPosition();
+  if (!p) return;
+  issState.position = {
+    ...p,
+    visibility: issState.visibility,
+    footprintKm: issState.footprintKm,
+  };
+  const latlng = [p.lat, p.lon];
+  if (!issState.marker) {
+    issState.marker = L.marker(latlng, { icon: ISS_ICON, zIndexOffset: 800 }).addTo(map);
+    issState.footprint = L.circle(latlng, {
+      radius: (issState.footprintKm || 4500) * 1000,
+      color: "#a371f7",
+      weight: 1,
+      opacity: 0.35,
+      fillColor: "#a371f7",
+      fillOpacity: 0.03,
+      interactive: false,
+    }).addTo(map);
+  } else {
+    issState.marker.setLatLng(latlng);
+    issState.footprint.setLatLng(latlng);
+  }
+}
+
+// Slower API refresh (every 5 min) — only for daylight/eclipsed and
+// the footprint radius, neither of which the TLE alone gives us.
+async function refreshIssApi() {
   try {
     const p = await fetchIssPosition();
-    issState.position = p;
-    const latlng = [p.lat, p.lon];
-    if (!issState.marker) {
-      issState.marker = L.marker(latlng, { icon: ISS_ICON, zIndexOffset: 800 }).addTo(map);
-      issState.footprint = L.circle(latlng, {
-        radius: p.footprintKm * 1000,
-        color: "#a371f7",
-        weight: 1,
-        opacity: 0.4,
-        fillColor: "#a371f7",
-        fillOpacity: 0.04,
-        interactive: false,
-      }).addTo(map);
-    } else {
-      issState.marker.setLatLng(latlng);
-      issState.footprint.setLatLng(latlng);
-      issState.footprint.setRadius(p.footprintKm * 1000);
-    }
+    issState.visibility = p.visibility;
+    issState.footprintKm = p.footprintKm;
+    if (issState.footprint) issState.footprint.setRadius(p.footprintKm * 1000);
     renderIssCard();
   } catch (err) {
-    console.warn("[iss] position fetch failed:", err.message);
+    console.warn("[iss] api refresh failed:", err.message);
   }
 }
 
@@ -1053,30 +1091,61 @@ async function refreshIssPasses() {
   }
 }
 
-// Schedule a voice + chime alert ~5 min before each *visible* pass.
-// Latched per-pass via `announcedPeaks` so a recompute doesn't re-fire
-// the same alert. We also fire a day-ahead notification at noon local
-// time for any excellent (score 3) passes happening tonight.
+function scheduleAlertAt(timestampMs, key, fn) {
+  if (issState.announcedPeaks.has(key)) return;
+  const delay = timestampMs - Date.now();
+  if (delay <= 0) return;
+  issState.announcedPeaks.add(key);
+  setTimeout(() => {
+    if (!issState.passes.some((p) => `${p.peakMs}` === key.split(":")[1])) return; // pass dropped
+    fn();
+  }, delay);
+}
+
+// Schedule voice alerts at every meaningful moment of a visible pass:
+//   • 5 min before peak  — heads-up warning
+//   • Rising (above 10°) — "now visible above Amsterdam"
+//   • Peak elevation     — "at peak now, X°"
+//   • Setting            — "ISS has set"
+// Excellent passes (score 3) get all four; lower-score passes get only
+// the 5-min warning + peak so we don't over-talk. Latched per-pass via
+// `announcedPeaks` so recomputes don't re-fire.
 function schedulePassAlerts() {
   const now = Date.now();
   for (const p of issState.passes) {
-    if (p.visibility.score === 0) continue; // skip non-visible
-    if (issState.announcedPeaks.has(p.peakMs)) continue;
-    const dueMs = p.peakMs - ISS_PASS_ALERT_LEAD_MS;
-    if (dueMs <= now) continue;
-    // setTimeout max delay is 2^31-1 ms (~24.8 days). Pass window is 5
-    // days so we're always safely under.
-    setTimeout(() => {
-      if (!issState.passes.some((q) => q.peakMs === p.peakMs)) return; // pass dropped
+    if (p.visibility.score === 0) continue;
+    const elev = Math.round(p.maxElevDeg);
+    const cloud = p.visibility.cloud != null ? ` Forecast: ${Math.round(p.visibility.cloud)}% cloud cover.` : "";
+    const peakKey = `peak:${p.peakMs}`;
+    const warnKey = `warn:${p.peakMs}`;
+    const riseKey = `rise:${p.peakMs}`;
+    const setKey  = `set:${p.peakMs}`;
+
+    // 5-min warning (all visible passes)
+    scheduleAlertAt(p.peakMs - ISS_PASS_ALERT_LEAD_MS, warnKey, () => {
       chime.zoneEntry();
-      const elev = Math.round(p.maxElevDeg);
-      const cloud = p.visibility.cloud != null ? ` Forecast: ${Math.round(p.visibility.cloud)}% cloud cover.` : "";
       voice.speak(
-        `Heads up — the International Space Station passes overhead Amsterdam in about 5 minutes, reaching ${elev} degrees above the horizon.${cloud}`
+        `Heads up — the International Space Station passes overhead Amsterdam in about 5 minutes, reaching ${elev} degrees.${cloud}`
       );
-      issState.announcedPeaks.add(p.peakMs);
-    }, dueMs - now);
-    issState.announcedPeaks.add(p.peakMs);
+    });
+
+    // Peak — strong cue
+    scheduleAlertAt(p.peakMs, peakKey, () => {
+      chime.zoneEntry();
+      voice.speak(`The ISS is at peak elevation now, ${elev} degrees above Amsterdam. Look up.`);
+    });
+
+    // Rising + setting — extras for the genuinely good passes only
+    if (p.visibility.score >= 2) {
+      const eta = Math.max(1, Math.round((p.peakMs - p.startMs) / 60_000));
+      scheduleAlertAt(p.startMs, riseKey, () => {
+        chime.zoneEntry();
+        voice.speak(`The ISS is now rising over the Amsterdam horizon — peak in about ${eta} minutes.`);
+      });
+      scheduleAlertAt(p.endMs, setKey, () => {
+        voice.speak(`The ISS has set below the horizon.`);
+      });
+    }
   }
 
   // Day-ahead: at noon today (or now if past noon), announce tonight's
@@ -1107,9 +1176,11 @@ function schedulePassAlerts() {
 (async () => {
   try {
     await initIssOrbit();
-    await refreshIssPosition();
+    await refreshIssApi();   // initial visibility + footprint
+    tickIssPosition();        // first synchronous draw from TLE
     await refreshIssPasses();
-    setInterval(refreshIssPosition, 30_000);
+    setInterval(tickIssPosition, 1_000);      // smooth 1 Hz movement
+    setInterval(refreshIssApi, 5 * 60_000);   // visibility refresh every 5 min
     setInterval(refreshIssPasses, 30 * 60_000); // recompute passes every 30 min
   } catch (err) {
     console.warn("[iss] init failed:", err.message);

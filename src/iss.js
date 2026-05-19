@@ -129,6 +129,41 @@ export function allPasses(observerLat, observerLon, observerAltKm = 0.01, fromMs
   return passes;
 }
 
+// Real-time position from the TLE — synchronous, runs in-browser, no
+// API call needed. Use this for the 1 Hz map-marker update; the
+// wheretheiss.at fetch is now only used for daylight/eclipsed info.
+export function currentPosition(date = new Date()) {
+  const sat = ensureSatrec();
+  if (!sat) return null;
+  const pv = satellite.propagate(sat, date);
+  if (!pv?.position || !pv?.velocity) return null;
+  const gmst = satellite.gstime(date);
+  const geo = satellite.eciToGeodetic(pv.position, gmst);
+  const lat = satellite.radiansToDegrees(geo.latitude);
+  let lon = satellite.radiansToDegrees(geo.longitude);
+  if (lon > 180) lon -= 360;
+  if (lon < -180) lon += 360;
+  return {
+    lat,
+    lon,
+    altKm: geo.height,
+    velocityKph: Math.hypot(pv.velocity.x, pv.velocity.y, pv.velocity.z) * 3600,
+  };
+}
+
+// Elevation in degrees from a given observer to the ISS at `date`.
+export function elevationFromObserver(observerLat, observerLon, observerAltKm = 0.01, date = new Date()) {
+  const sat = ensureSatrec();
+  if (!sat) return null;
+  const obs = {
+    latitude:  satellite.degreesToRadians(observerLat),
+    longitude: satellite.degreesToRadians(observerLon),
+    height:    observerAltKm,
+  };
+  const sample = sampleAt(sat, obs, date);
+  return sample?.elevDeg ?? null;
+}
+
 function sampleAt(sat, obs, date) {
   const pv = satellite.propagate(sat, date);
   if (!pv?.position) return null;
