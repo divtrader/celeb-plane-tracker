@@ -9,21 +9,13 @@ html, body {
   color: #e6edf3;
 }
 
-/* When the panel is open, map and history shrink by --panel-width so
-   nothing is hidden behind the drawer. Default is 0 (panel closed). */
-:root { --panel-width: 0px; }
-@media (min-width: 640px) {
-  body.panel-open { --panel-width: 380px; }
-}
-
 #map {
   position: absolute;
   top: 0;
   bottom: 96px;
   left: 0;
-  right: var(--panel-width);
+  right: 360px;
   background: #0b0f14;
-  transition: right 0.32s cubic-bezier(0.2, 0.9, 0.3, 1);
 }
 
 #hud {
@@ -220,7 +212,7 @@ html, body {
 #history {
   position: absolute;
   left: 0;
-  right: var(--panel-width);
+  right: 360px;
   bottom: 0;
   height: 96px;
   background: rgba(13, 17, 23, 0.95);
@@ -229,7 +221,6 @@ html, body {
   flex-direction: column;
   z-index: 800;
   backdrop-filter: blur(8px);
-  transition: right 0.32s cubic-bezier(0.2, 0.9, 0.3, 1);
 }
 #history-header {
   padding: 8px 16px 4px;
@@ -341,116 +332,13 @@ html, body {
   top: 0;
   right: 0;
   bottom: 0;
-  width: 380px;
-  max-width: 90vw;
-  background: rgba(13, 17, 23, 0.96);
+  width: 360px;
+  background: rgba(13, 17, 23, 0.95);
   border-left: 1px solid #30363d;
   display: flex;
   flex-direction: column;
   z-index: 900;
-  backdrop-filter: blur(10px);
-  transform: translateX(100%);
-  transition: transform 0.32s cubic-bezier(0.2, 0.9, 0.3, 1);
-  box-shadow: -12px 0 36px rgba(0, 0, 0, 0.45);
-}
-#panel.open { transform: translateX(0); }
-
-/* Hamburger button — floats top-right, animates into an X when open.
-   Tuned for touch: 48px target, solid fallback background (no reliance
-   on backdrop-filter), translateY-based animation for smooth tablet
-   rendering, manipulation-only touch-action to skip the 300ms delay. */
-#menu-btn {
-  position: absolute;
-  top: 12px;
-  right: 12px;
-  z-index: 1100;
-  width: 48px;
-  height: 48px;
-  background: #161b22;
-  border: 1px solid #30363d;
-  border-radius: 12px;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0;
-  touch-action: manipulation;
-  -webkit-tap-highlight-color: transparent;
-  transition: background 0.2s, border-color 0.2s, box-shadow 0.2s;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
-}
-/* Add the glass effect only where supported; the solid bg above is the
-   fallback for browsers like older ChromeOS / Android WebView builds. */
-@supports ((backdrop-filter: blur(8px)) or (-webkit-backdrop-filter: blur(8px))) {
-  #menu-btn {
-    background: rgba(22, 27, 34, 0.78);
-    -webkit-backdrop-filter: blur(8px);
-    backdrop-filter: blur(8px);
-  }
-}
-#menu-btn:hover,
-#menu-btn:active {
-  background: #21262d;
-  border-color: #484f58;
-}
-#menu-btn:focus-visible {
-  outline: 2px solid #58a6ff;
-  outline-offset: 2px;
-}
-
-.menu-icon {
-  position: relative;
-  display: block;
-  width: 22px;
-  height: 16px;
-  flex-shrink: 0;
-}
-.menu-icon > span {
-  position: absolute;
-  left: 0;
-  width: 100%;
-  height: 3px;
-  background: #e6edf3;
-  border-radius: 2px;
-  top: 50%;
-  margin-top: -1.5px;
-  transform-origin: 50% 50%;
-  transition: transform 0.25s ease, opacity 0.18s ease;
-  will-change: transform;
-}
-.menu-icon > span:nth-child(1) { transform: translateY(-7px); }
-.menu-icon > span:nth-child(2) { transform: translateY(0); }
-.menu-icon > span:nth-child(3) { transform: translateY(7px); }
-
-#menu-btn.open .menu-icon > span:nth-child(1) { transform: translateY(0) rotate(45deg); }
-#menu-btn.open .menu-icon > span:nth-child(2) { transform: scaleX(0); opacity: 0; }
-#menu-btn.open .menu-icon > span:nth-child(3) { transform: translateY(0) rotate(-45deg); }
-
-.menu-badge {
-  position: absolute;
-  top: -6px;
-  right: -6px;
-  min-width: 22px;
-  height: 22px;
-  border-radius: 11px;
-  background: #1f6feb;
-  color: #fff;
-  font-size: 12px;
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-  line-height: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0 6px;
-  box-shadow: 0 0 0 2px #0b0f14, 0 0 10px rgba(31, 111, 235, 0.5);
-  pointer-events: none;
-}
-.menu-badge.hidden { display: none; }
-.menu-badge.zone {
-  background: #f0883e;
-  box-shadow: 0 0 0 2px #0b0f14, 0 0 12px rgba(240, 136, 62, 0.7);
-  animation: pulse 1.4s ease-in-out infinite;
+  backdrop-filter: blur(8px);
 }
 
 #panel-header {
