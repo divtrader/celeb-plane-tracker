@@ -120,6 +120,17 @@ export class MockAdapter {
     const script = scripts[hex.toUpperCase()];
     return script ? script() : null;
   }
+  // Same contract as the real adapter so demo mode uses the same path.
+  async fetchBulkSnapshot() {
+    const byKey = new Map();
+    for (const key of Object.keys(scripts)) {
+      const ac = scripts[key]();
+      if (!ac) continue;
+      if (ac.reg)  byKey.set(ac.reg.toUpperCase(),  ac);
+      if (ac.icao) byKey.set(ac.icao.toLowerCase(), ac);
+    }
+    return byKey;
+  }
 }
 
 // Preset routes for the demo callsigns — used to drive the progress bar

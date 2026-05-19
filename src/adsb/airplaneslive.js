@@ -1,6 +1,12 @@
 // airplanes.live adapter. Same response shape as adsb.lol but includes
 // `Access-Control-Allow-Origin: *`, so the browser can call it directly
 // from a static site. No API key required.
+//
+// Preferred entry point is `fetchBulkSnapshot()`, which makes two calls
+// (LADD = privacy-opted-out aircraft like celebrity jets, plus MIL =
+// military aircraft like Air Force One) and returns a Map keyed by both
+// registration and ICAO hex. That's 2 requests per poll instead of one
+// per tail, which dodges Cloudflare's per-IP rate limit completely.
 
 const BASE = "https://api.airplanes.live/v2";
 
@@ -17,15 +23,40 @@ export class AirplanesLiveAdapter {
     return this._fetch(`${BASE}/hex/${encodeURIComponent(hex.toLowerCase())}`, null);
   }
 
-  async _fetch(url, fallbackReg) {
+  // Returns Map<upperReg | lowerHex, Aircraft>. Each aircraft is indexed
+  // under both its registration AND its ICAO hex so callers can look up
+  // by either key.
+  async fetchBulkSnapshot() {
+    const [ladd, mil] = await Promise.all([
+      this._fetchList(`${BASE}/ladd`),
+      this._fetchList(`${BASE}/mil`),
+    ]);
+
+    const byKey = new Map();
+    const ingest = (list) => {
+      for (const raw of list) {
+        const ac = this._parseAircraft(raw, null);
+        if (!ac) continue;
+        if (ac.reg)  byKey.set(ac.reg.toUpperCase(),  ac);
+        if (ac.icao) byKey.set(ac.icao.toLowerCase(), ac);
+      }
+    };
+    ingest(ladd);
+    ingest(mil);
+    return byKey;
+  }
+
+  async _fetchList(url) {
+    const res = await this._rawFetch(url);
+    const data = await res.json();
+    return Array.isArray(data?.ac) ? data.ac : [];
+  }
+
+  async _rawFetch(url) {
     let res;
     try {
       res = await this.fetch(url, { headers: { Accept: "application/json" } });
     } catch (e) {
-      // Cloudflare strips CORS headers on rate-limited / error responses,
-      // which the browser then surfaces as a generic TypeError without any
-      // status code. Treat these as rate-limited — that's the only common
-      // cause once we know the API normally sends CORS headers on success.
       const err = new Error(`network/CORS error (likely Cloudflare throttle): ${e.message}`);
       err.rateLimited = true;
       throw err;
@@ -41,15 +72,15 @@ export class AirplanesLiveAdapter {
       err.status = res.status;
       throw err;
     }
-    const data = await res.json();
-    const ac = Array.isArray(data?.ac) ? data.ac[0] : null;
-    if (!ac || typeof ac.lat !== "number" || typeof ac.lon !== "number") return null;
+    return res;
+  }
 
+  _parseAircraft(ac, fallbackReg) {
+    if (!ac || typeof ac.lat !== "number" || typeof ac.lon !== "number") return null;
     const onGround = ac.alt_baro === "ground";
     const altNum = typeof ac.alt_baro === "number" ? ac.alt_baro
                  : typeof ac.alt_geom === "number" ? ac.alt_geom
                  : null;
-
     return {
       reg: ac.r ?? fallbackReg ?? null,
       icao: ac.hex ?? null,
@@ -63,5 +94,12 @@ export class AirplanesLiveAdapter {
       onGround,
       seenAt: Date.now() - (ac.seen ?? 0) * 1000,
     };
+  }
+
+  async _fetch(url, fallbackReg) {
+    const res = await this._rawFetch(url);
+    const data = await res.json();
+    const ac = Array.isArray(data?.ac) ? data.ac[0] : null;
+    return this._parseAircraft(ac, fallbackReg);
   }
 }

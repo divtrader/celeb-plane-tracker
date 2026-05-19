@@ -11,12 +11,10 @@ import { Chime } from "./chime.js";
 // Demo mode (?demo=1) swaps to a local MockAdapter with no rate limits.
 const DEMO_MODE = new URLSearchParams(window.location.search).has("demo");
 
-const POLL_INTERVAL_MS = DEMO_MODE ? 4_000 : 60_000;
-// airplanes.live rate-limits at ~1 request/second with a small burst bucket.
-// 1500ms spacing gives a margin against bursts; 56 tails × 1.5s = 84s per
-// sweep. Combined with self-chained pollLoop, sweeps never overlap and the
-// long-term steady-state stays well under the rate limit.
-const REQUEST_SPACING_MS = DEMO_MODE ? 0 : 1500;
+// One bulk fetch per poll (LADD + MIL aircraft, ~850 total) replaces the
+// previous per-tail loop — so we no longer need per-request spacing and
+// rate-limit risk drops to near zero.
+const POLL_INTERVAL_MS = DEMO_MODE ? 4_000 : 30_000;
 
 const EUROPE_CENTER = [50.5, 8.0];
 const EUROPE_ZOOM = 5;
@@ -439,101 +437,83 @@ function sleep(ms) {
 }
 
 async function pollOnce() {
-  setStatus("loading", "Polling…");
-  sweep.current = null;
+  setStatus("loading", "Fetching snapshot…");
+  sweep.current = "snapshot";
   sweep.idx = 0;
   sweep.total = CELEBRITY_TAILS.length;
   sweep.ok = sweep.err = sweep.rate = sweep.skip = 0;
-  renderSweepUi();
+  els.pollProgress.innerHTML = `<span class="reg">Fetching bulk snapshot…</span>`;
+  els.pollStats.innerHTML = "";
+
+  let snapshot;
+  try {
+    snapshot = await adsb.fetchBulkSnapshot();
+    sweep.ok = 1;
+  } catch (err) {
+    if (err.rateLimited) sweep.rate = 1;
+    else sweep.err = 1;
+    console.warn("[adsb snapshot]", err.message);
+    snapshot = new Map();
+  }
+
   let airborne = 0;
+  let matched = 0;
 
   for (const tail of CELEBRITY_TAILS) {
-    const reg = tail.reg.toUpperCase();
-    sweep.current = reg;
     sweep.idx++;
-    renderSweepUi();
-    highlightPollingRow(reg);
+    const reg = tail.reg.toUpperCase();
+    const ac = snapshot.get(reg)
+            || (tail.icao ? snapshot.get(tail.icao.toLowerCase()) : null);
+    const state = tailState.get(reg);
+    state.updatedAt = Date.now();
 
-    // If we've been getting rate-limited, skip the rest of this sweep —
-    // hammering it just resets Cloudflare's cooldown. Preserve previous
-    // state and try again next minute.
-    if (sweep.rate >= 3) {
-      sweep.skip = sweep.total - sweep.idx + 1;
-      renderSweepUi();
-      break;
-    }
-
-    try {
-      const ac = tail.icao
-        ? await adsb.fetchByIcao(tail.icao)
-        : await adsb.fetchByRegistration(reg);
-      sweep.ok++;
-      const state = tailState.get(reg);
-      state.updatedAt = Date.now();
-      if (ac) {
-        flightState.observe(reg, ac, tail);
-        if (ac.onGround) {
-          removeMarker(reg);
-          geofence.forget(reg);
-          state.phase = "ground";
-          state.ac = ac;
-          state.inZone = false;
-          state.route = undefined;
-        } else {
-          airborne++;
-          state.ac = ac; // assign before geofence.update so the zone callback sees current data
-          const inZone = geofence.update(reg, { lat: ac.lat, lon: ac.lon }, tail);
-          upsertMarker(reg, ac, tail, inZone);
-          state.phase = inZone ? "zone" : "cruising";
-          state.inZone = inZone;
-          // Async route lookup — fires once per flight, refreshes the panel
-          // when the route is found. Reset to undefined on landing/no-signal
-          // so the next flight gets a fresh lookup.
-          if (state.route === undefined && ac.flight) {
-            routeFor(ac.flight).then((route) => {
-              state.route = route ?? null;
-              renderPanel();
-            });
-          }
-        }
-      } else {
+    if (ac) {
+      matched++;
+      flightState.observe(reg, ac, tail);
+      if (ac.onGround) {
         removeMarker(reg);
         geofence.forget(reg);
-        state.phase = "nosignal";
-        state.ac = null;
+        state.phase = "ground";
+        state.ac = ac;
         state.inZone = false;
         state.route = undefined;
-      }
-    } catch (err) {
-      if (err.rateLimited) {
-        sweep.rate++;
       } else {
-        sweep.err++;
+        airborne++;
+        state.ac = ac;
+        const inZone = geofence.update(reg, { lat: ac.lat, lon: ac.lon }, tail);
+        upsertMarker(reg, ac, tail, inZone);
+        state.phase = inZone ? "zone" : "cruising";
+        state.inZone = inZone;
+        if (state.route === undefined && ac.flight) {
+          routeFor(ac.flight).then((route) => {
+            state.route = route ?? null;
+            renderPanel();
+          });
+        }
       }
-      console.warn(`[adsb] ${reg}:`, err.message);
+    } else {
+      removeMarker(reg);
+      geofence.forget(reg);
+      state.phase = "nosignal";
+      state.ac = null;
+      state.inZone = false;
+      state.route = undefined;
     }
-    renderSweepUi();
-    await sleep(REQUEST_SPACING_MS);
-    renderPanel(); // live update as each tail comes back
   }
 
-  highlightPollingRow(null);
   sweep.current = null;
+  els.pollProgress.innerHTML = `<span class="reg">${matched}</span> of ${sweep.total} in snapshot`;
+  els.pollStats.innerHTML =
+    sweep.rate > 0 ? `<span class="stat-rate">⏸ rate-limited</span>` :
+    sweep.err  > 0 ? `<span class="stat-err">✗ snapshot fetch failed</span>` :
+                     `<span class="stat-ok">✓ ${snapshot.size} aircraft cached</span>`;
   els.airborneCount.textContent = String(airborne);
   els.lastUpdate.textContent = `Updated ${new Date().toLocaleTimeString()}`;
+  renderPanel();
 
-  if (sweep.rate > 5 && sweep.ok === 0) {
-    // Likely a Cloudflare IP throttle — needs human-scale cooldown.
-    setStatus("err", "Cloudflare cooldown (5–30 min)");
-  } else if (sweep.rate > 0) {
-    setStatus("err", "Rate-limited — backing off");
-  } else if (sweep.err === 0) {
-    setStatus("ok", "Live");
-  } else if (sweep.err < CELEBRITY_TAILS.length) {
-    setStatus("ok", `Live (${sweep.err} errors)`);
-  } else {
-    setStatus("err", "Source unreachable");
-  }
+  if (sweep.rate > 0) setStatus("err", "Rate-limited — backing off");
+  else if (sweep.err > 0) setStatus("err", "Source unreachable");
+  else setStatus("ok", "Live");
 }
 
 async function tryWakeLock() {
@@ -580,12 +560,9 @@ async function pollLoop() {
   } catch (err) {
     console.error("[pollLoop]", err);
   }
-  // Longer cooldown when rate-limited so Cloudflare's bucket refills.
-  // Any rate-limit with zero successes = the IP is in a multi-minute
-  // Cloudflare block; nudging it just resets the cooldown, so wait 5 min.
-  let wait = POLL_INTERVAL_MS;
-  if (sweep.rate > 0 && sweep.ok === 0) wait = 5 * 60_000;
-  else if (sweep.rate > 0)              wait = POLL_INTERVAL_MS * 2;
+  // A bulk-snapshot rate-limit is a true Cloudflare IP block — nudging
+  // sooner than 5 min just resets the cooldown timer.
+  const wait = sweep.rate > 0 ? 5 * 60_000 : POLL_INTERVAL_MS;
   startCountdown(Math.round(wait / 1000));
   setTimeout(pollLoop, wait);
 }
