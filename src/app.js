@@ -622,7 +622,19 @@ els.historyList.addEventListener("click", (e) => {
 
 setInterval(renderHistory, 30_000); // refresh "Xm ago" labels
 
+// Dedupe "spotted" alerts at the event level. Multiple reloads in a
+// short window should fold into one entry, but real takeoff/landing
+// events must always log — those are genuine point-in-time moments.
+const SPOTTED_DEDUP_MS = 60 * 60_000; // 1 hour
+
 function fireEvent({ type, meta, ac }) {
+  if (type === "spotted") {
+    const recent = eventHistory.find(
+      (e) => e.type === "spotted" && e.meta?.reg === meta.reg
+              && Date.now() - e.at < SPOTTED_DEDUP_MS
+    );
+    if (recent) return recent;
+  }
   // Only takeoff/landing events have a meaningful "from/at airport" — at
   // cruise altitude the nearest airport is misleading. Skip airport lookup
   // entirely for zone-entry and spotted alerts.
@@ -639,36 +651,6 @@ function fireEvent({ type, meta, ac }) {
   if (type !== "spotted") flyToEvent(ac);
   return evt;
 }
-
-// Persist the FlightStateTracker so on reload we don't re-fire
-// "spotted" for celebs we've already seen this hour. 5-minute freshness
-// window so an old saved state can't cause spurious takeoff/landing
-// transitions on a much-later reopen.
-const FLIGHT_STATE_KEY = "celeb-tracker.flightState-v1";
-const FLIGHT_STATE_FRESH_MS = 30 * 60_000; // 30 min
-
-function loadFlightState() {
-  try {
-    const raw = JSON.parse(localStorage.getItem(FLIGHT_STATE_KEY) || "null");
-    if (!raw?.savedAt || Date.now() - raw.savedAt > FLIGHT_STATE_FRESH_MS) return;
-    for (const [reg, phase] of Object.entries(raw.state || {})) {
-      flightState.state.set(reg, { phase, primed: true });
-    }
-  } catch {}
-}
-function saveFlightState() {
-  try {
-    const state = {};
-    for (const [reg, entry] of flightState.state.entries()) {
-      state[reg] = entry.phase;
-    }
-    localStorage.setItem(FLIGHT_STATE_KEY, JSON.stringify({ savedAt: Date.now(), state }));
-  } catch {}
-}
-// Note: loadFlightState() must run *after* the FlightStateTracker is
-// constructed below, otherwise `flightState` is in the temporal dead
-// zone and the load silently throws — exactly what was happening
-// before, which kept duplicating "spotted" entries on every reload.
 
 function saveTrails() {
   try {
@@ -792,13 +774,6 @@ const flightState = new FlightStateTracker({
   },
 });
 
-// Seed FlightStateTracker from persisted state *now* that it exists.
-// Calling this before the `new FlightStateTracker(...)` line above
-// would throw a ReferenceError that the try/catch silently swallowed —
-// which is exactly why duplicate "spotted" entries kept appearing on
-// every reload.
-loadFlightState();
-
 function sleep(ms) {
   return new Promise((r) => setTimeout(r, ms));
 }
@@ -884,7 +859,6 @@ async function pollOnce() {
   els.lastUpdate.textContent = `Updated ${new Date().toLocaleTimeString()}`;
   renderPanel();
   saveTrails();
-  saveFlightState();
 
   if (sweep.rate > 0) setStatus("err", "Rate-limited — backing off");
   else if (sweep.err > 0) setStatus("err", "Source unreachable");
