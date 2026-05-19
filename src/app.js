@@ -665,7 +665,10 @@ function saveFlightState() {
     localStorage.setItem(FLIGHT_STATE_KEY, JSON.stringify({ savedAt: Date.now(), state }));
   } catch {}
 }
-loadFlightState();
+// Note: loadFlightState() must run *after* the FlightStateTracker is
+// constructed below, otherwise `flightState` is in the temporal dead
+// zone and the load silently throws — exactly what was happening
+// before, which kept duplicating "spotted" entries on every reload.
 
 function saveTrails() {
   try {
@@ -788,6 +791,13 @@ const flightState = new FlightStateTracker({
     voice.speak(`${named(meta)} just landed${where} in a ${meta.aircraft}`);
   },
 });
+
+// Seed FlightStateTracker from persisted state *now* that it exists.
+// Calling this before the `new FlightStateTracker(...)` line above
+// would throw a ReferenceError that the try/catch silently swallowed —
+// which is exactly why duplicate "spotted" entries kept appearing on
+// every reload.
+loadFlightState();
 
 function sleep(ms) {
   return new Promise((r) => setTimeout(r, ms));
