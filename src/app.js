@@ -138,6 +138,19 @@ L.circle([AMSTERDAM_ZONE.center.lat, AMSTERDAM_ZONE.center.lon], {
   interactive: false,
 }).addTo(map);
 
+// Day/night terminator overlay — subtle shading of the night hemisphere
+// that follows the subsolar point. Refreshes once a minute.
+if (typeof L.terminator === "function") {
+  const terminator = L.terminator({
+    fillColor: "#000",
+    fillOpacity: 0.28,
+    color: "#000",
+    weight: 0,
+    interactive: false,
+  }).addTo(map);
+  setInterval(() => terminator.setTime(), 60_000);
+}
+
 const trailLayer = L.layerGroup().addTo(map);
 const markers = new Map(); // reg -> { marker, trail, positions[], inZone }
 const originMarkers = new Map(); // reg -> Leaflet circleMarker at origin airport
@@ -275,6 +288,48 @@ const PHASE_LABEL = {
 };
 const PHASE_ORDER = { zone: 0, cruising: 1, ground: 2, nosignal: 3 };
 
+// Initials avatar with a deterministic color hashed from the name. Real
+// portraits can be opt-in per-celeb later via meta.image; falls back to
+// initials when no image URL is set.
+function avatarInitials(name) {
+  return name
+    .split(/[\s&·]+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((s) => s[0])
+    .join("")
+    .toUpperCase();
+}
+function hashHue(s) {
+  let h = 0;
+  for (let i = 0; i < s.length; i++) h = ((h << 5) - h + s.charCodeAt(i)) | 0;
+  return Math.abs(h) % 360;
+}
+function avatarHtml(meta) {
+  const hue = hashHue(meta.name);
+  const initials = avatarInitials(meta.name);
+  return `<span class="avatar" style="background: linear-gradient(135deg, hsl(${hue}, 55%, 40%), hsl(${(hue + 30) % 360}, 55%, 28%));">${initials}</span>`;
+}
+
+// Aircraft silhouettes — three sizes tuned to the celeb fleet. Heavy =
+// Boeing 757/767/VC-25A; light = small biz jets (Citation, Learjet,
+// Challenger 350/600); mid = the typical Gulfstream / Global / Falcon.
+function aircraftSize(type) {
+  const t = (type || "").toLowerCase();
+  if (/\b(7[45]7|vc-?25|767|wide|jumbo)\b/.test(t)) return "heavy";
+  if (/citation|learjet|challenger 3|challenger 6/.test(t)) return "light";
+  return "mid";
+}
+const SILHOUETTE_PATH = {
+  heavy: "M12 1 L13.6 8.5 L23 12 L23 13.7 L13.6 13.2 L13.6 17 L17.5 19 L17.5 19.9 L13.6 19.4 L12 22 L10.4 19.4 L6.5 19.9 L6.5 19 L10.4 17 L10.4 13.2 L1 13.7 L1 12 L10.4 8.5 Z",
+  mid:   "M12 1.5 L13 10 L22 12.5 L22 13.6 L13 13.2 L13 17.5 L16.5 18.8 L16.5 19.6 L13 19.2 L12 21.5 L11 19.2 L7.5 19.6 L7.5 18.8 L11 17.5 L11 13.2 L2 13.6 L2 12.5 L11 10 Z",
+  light: "M12 3 L13 10.5 L20 12.8 L20 13.5 L13 13 L13 17 L15.5 18.3 L15.5 19 L13 18.6 L12 20.5 L11 18.6 L8.5 19 L8.5 18.3 L11 17 L11 13 L4 13.5 L4 12.8 L11 10.5 Z",
+};
+function silhouetteHtml(type) {
+  const size = aircraftSize(type);
+  return `<svg class="row-silhouette" viewBox="0 0 24 24" aria-hidden="true"><path d="${SILHOUETTE_PATH[size]}"/></svg>`;
+}
+
 function fmtAlt(alt) {
   if (typeof alt !== "number") return null;
   if (alt >= 18_000) return `FL${Math.round(alt / 100)}`;
@@ -335,10 +390,10 @@ function renderPanel() {
 
     return `
       <li class="celeb-row phase-${phase} ${clickable}" data-reg="${meta.reg.toUpperCase()}">
-        <span class="row-dot"></span>
+        ${avatarHtml(meta)}
         <span class="row-name">${meta.name}${uncertain}</span>
         <span class="row-phase">${PHASE_LABEL[phase]}</span>
-        <div class="row-meta">${meta.reg} · ${meta.aircraft}</div>
+        <div class="row-meta">${silhouetteHtml(meta.aircraft)}${meta.reg} · ${meta.aircraft}</div>
         <div class="row-stats">${stats}</div>
         ${progressBar}
       </li>`;
@@ -362,12 +417,42 @@ const EVENT_LABEL = {
   takeoff: "Took off",
   landing: "Landed",
   zone: `Entered ${AMSTERDAM_ZONE.name}`,
+  spotted: "Spotted in flight",
 };
 const EVENT_ICON = {
   takeoff: "🛫",
   landing: "🛬",
   zone: "📍",
+  spotted: "📡",
 };
+
+// Auto-fly: takeoff / landing / zone events briefly fly the map to the
+// event's lat/lon, then fly back to the previous view after FLYTO_HOLD_MS.
+// "Spotted" events are intentionally excluded — they fire in bursts on
+// the first poll and would whip the map around.
+const FLYTO_HOLD_MS = 4000;
+let flyReturnView = null;
+let flyReturnTimer = null;
+
+function flyToEvent(ac) {
+  if (!ac || typeof ac.lat !== "number") return;
+  if (!flyReturnTimer) {
+    flyReturnView = { center: map.getCenter(), zoom: map.getZoom() };
+  } else {
+    clearTimeout(flyReturnTimer);
+  }
+  map.flyTo([ac.lat, ac.lon], Math.max(6, Math.min(8, map.getZoom() + 2)), {
+    duration: 1.2,
+    easeLinearity: 0.35,
+  });
+  flyReturnTimer = setTimeout(() => {
+    if (flyReturnView) {
+      map.flyTo(flyReturnView.center, flyReturnView.zoom, { duration: 1.1, easeLinearity: 0.35 });
+    }
+    flyReturnTimer = null;
+    flyReturnView = null;
+  }, FLYTO_HOLD_MS);
+}
 const HISTORY_MAX = 20;
 const eventHistory = [];
 
@@ -441,7 +526,7 @@ setInterval(renderHistory, 30_000); // refresh "Xm ago" labels
 function fireEvent({ type, meta, ac }) {
   // Only takeoff/landing events have a meaningful "from/at airport" — at
   // cruise altitude the nearest airport is misleading. Skip airport lookup
-  // entirely for zone-entry alerts.
+  // entirely for zone-entry and spotted alerts.
   const airport = (type === "takeoff" || type === "landing") && ac
     ? nearestAirport(ac.lat, ac.lon)
     : null;
@@ -451,6 +536,7 @@ function fireEvent({ type, meta, ac }) {
   if (eventHistory.length > HISTORY_MAX) eventHistory.pop();
   showEventCard(evt);
   renderHistory();
+  if (type !== "spotted") flyToEvent(ac);
   return evt;
 }
 
@@ -503,6 +589,12 @@ const geofence = new GeofenceTracker(AMSTERDAM_ZONE, ({ reg, meta, zone }) => {
 });
 
 const flightState = new FlightStateTracker({
+  onSpotted: ({ meta, ac }) => {
+    // Page just loaded and this celeb was already airborne — log to
+    // activity so the user knows they're up, but no chime/voice (they
+    // didn't *just* take off).
+    fireEvent({ type: "spotted", meta, ac });
+  },
   onTakeoff: ({ meta, ac }) => {
     const evt = fireEvent({ type: "takeoff", meta, ac });
     chime.takeoff();

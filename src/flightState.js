@@ -14,9 +14,10 @@ const PHASE_GROUND = "ground";
 const PHASE_AIRBORNE = "airborne";
 
 export class FlightStateTracker {
-  constructor({ onTakeoff, onLanding }) {
+  constructor({ onTakeoff, onLanding, onSpotted }) {
     this.onTakeoff = onTakeoff;
     this.onLanding = onLanding;
+    this.onSpotted = onSpotted; // fired on first sighting if already airborne
     this.state = new Map(); // reg -> { phase, primed }
   }
 
@@ -25,8 +26,13 @@ export class FlightStateTracker {
     const prior = this.state.get(reg);
 
     if (!prior) {
-      // First sighting — record without firing.
+      // First sighting — silent for ground (no fake takeoff later), but
+      // emit a "spotted" event when already airborne so the activity
+      // log shows celebs that were up when the page loaded.
       this.state.set(reg, { phase, primed: true });
+      if (phase === PHASE_AIRBORNE && this.onSpotted) {
+        this.onSpotted({ reg, ac, meta });
+      }
       return;
     }
 
