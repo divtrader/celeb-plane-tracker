@@ -9,13 +9,21 @@ html, body {
   color: #e6edf3;
 }
 
+/* When the panel is open, map and history shrink by --panel-width so
+   nothing is hidden behind the drawer. Default is 0 (panel closed). */
+:root { --panel-width: 0px; }
+@media (min-width: 640px) {
+  body.panel-open { --panel-width: 380px; }
+}
+
 #map {
   position: absolute;
   top: 0;
   bottom: 96px;
   left: 0;
-  right: 0;
+  right: var(--panel-width);
   background: #0b0f14;
+  transition: right 0.32s cubic-bezier(0.2, 0.9, 0.3, 1);
 }
 
 #hud {
@@ -212,7 +220,7 @@ html, body {
 #history {
   position: absolute;
   left: 0;
-  right: 0;
+  right: var(--panel-width);
   bottom: 0;
   height: 96px;
   background: rgba(13, 17, 23, 0.95);
@@ -221,6 +229,7 @@ html, body {
   flex-direction: column;
   z-index: 800;
   backdrop-filter: blur(8px);
+  transition: right 0.32s cubic-bezier(0.2, 0.9, 0.3, 1);
 }
 #history-header {
   padding: 8px 16px 4px;

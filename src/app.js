@@ -55,9 +55,13 @@ const els = {
 // (it animates into an X while open) or pressing Escape.
 els.menuBtn.addEventListener("click", () => {
   const isOpen = els.panel.classList.toggle("open");
+  document.body.classList.toggle("panel-open", isOpen);
   els.menuBtn.classList.toggle("open", isOpen);
   els.menuBtn.setAttribute("aria-expanded", String(isOpen));
   els.menuBtn.setAttribute("aria-label", isOpen ? "Close tracked list" : "Open tracked list");
+  // Leaflet needs to know about the container resize after the transition
+  // settles — otherwise tiles outside the old bounds don't load.
+  setTimeout(() => map.invalidateSize(), 340);
 });
 document.addEventListener("keydown", (e) => {
   if (e.key === "Escape" && els.panel.classList.contains("open")) {
