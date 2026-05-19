@@ -392,21 +392,24 @@ async function tryWakeLock() {
   }
 }
 
-function start() {
+// Polling and map rendering run immediately on page load — no gesture needed.
+// The Start button is only for unlocking Web Audio + speech, which browsers
+// require to be initiated by a user click.
+function enableAudio() {
   els.startBtn.classList.add("hidden");
-  els.trackedCount.textContent = String(CELEBRITY_TAILS.length);
   voice.unlock();
   chime.unlock();
   tryWakeLock();
-  loadAirports(); // fire-and-forget; first event in <60s, plenty of time
-  pollOnce();
-  setInterval(pollOnce, POLL_INTERVAL_MS);
 }
 
-els.startBtn.addEventListener("click", start);
+els.startBtn.addEventListener("click", enableAudio);
 els.trackedCount.textContent = String(CELEBRITY_TAILS.length);
-setStatus("idle", "Tap Start");
+setStatus("loading", "Starting…");
 renderPanel(); // initial render — every tail starts as "no signal"
+
+loadAirports();
+pollOnce();
+setInterval(pollOnce, POLL_INTERVAL_MS);
 
 // Some browsers populate the voice list asynchronously.
 if (window.speechSynthesis) {
