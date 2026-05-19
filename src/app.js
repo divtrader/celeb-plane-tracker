@@ -447,13 +447,19 @@ function renderPanel() {
         </div>
         <div class="row-route-names">${origName} <span class="row-arrow">→</span> ${destName}</div>`;
     } else if (s.takeoffAirport && ac) {
-      // We saw the takeoff so we know origin, but no filed destination.
+      // We know origin (takeoff event or low-altitude spotting) but the
+      // public route DB has no filed destination for this callsign —
+      // typical for private jets.
       const code = s.takeoffAirport.iata || s.takeoffAirport.icao;
       const name = s.takeoffAirport.name || code;
       progressBar = `
         <div class="row-route-origin">
           <span class="row-origin-label">Departed from</span>
           <span class="row-origin-name"><span class="row-origin-code">${code}</span> · ${name}</span>
+        </div>
+        <div class="row-route-origin row-route-dest-unknown">
+          <span class="row-origin-label">Heading to</span>
+          <span class="row-origin-name">Destination unknown</span>
         </div>`;
     } else if (ac && typeof ac.alt === "number") {
       const altPct = Math.max(3, Math.min(100, (ac.alt / 45_000) * 100));
@@ -601,7 +607,7 @@ function fireEvent({ type, meta, ac }) {
   // cruise altitude the nearest airport is misleading. Skip airport lookup
   // entirely for zone-entry and spotted alerts.
   const airport = (type === "takeoff" || type === "landing") && ac
-    ? nearestAirport(ac.lat, ac.lon)
+    ? nearestAirport(ac.lat, ac.lon, 10)
     : null;
   const evt = { type, meta, ac, airport, at: Date.now() };
   console.log(`[ALERT ${type}]`, meta.name, meta.reg, airport ? `@ ${airport.icao}` : "");
@@ -695,6 +701,20 @@ const flightState = new FlightStateTracker({
     // activity so the user knows they're up, but no chime/voice (they
     // didn't *just* take off).
     fireEvent({ type: "spotted", meta, ac });
+    // If they're still low, they likely just took off — infer origin
+    // from a generous nearby-airport search. Skipped at cruise altitude
+    // where the nearest airport is meaningless.
+    if (typeof ac.alt === "number" && ac.alt < 8000) {
+      const origin = nearestAirport(ac.lat, ac.lon, 30); // 30nm radius
+      if (origin) {
+        const state = tailState.get(meta.reg.toUpperCase());
+        if (state) {
+          state.takeoffAirport = origin;
+          refreshTrail(meta.reg.toUpperCase());
+          renderPanel();
+        }
+      }
+    }
   },
   onTakeoff: ({ meta, ac }) => {
     const evt = fireEvent({ type: "takeoff", meta, ac });

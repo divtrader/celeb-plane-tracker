@@ -669,6 +669,9 @@ body.panel-collapsed #panel-toggle { left: -26px; }
 .phase-ground .row-route-origin,
 .phase-nosignal .row-route-origin { display: none; }
 
+.row-route-dest-unknown { margin-top: 2px; }
+.row-route-dest-unknown .row-origin-name { color: #6e7681; font-style: italic; }
+
 .uncertain-badge {
   display: inline-block;
   margin-left: 6px;
