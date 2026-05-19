@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <title>Celeb Jet Tracker</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div id="map"></div>
+
+  <div id="hud">
+    <div id="status">
+      <span id="status-dot" class="dot dot-idle"></span>
+      <span id="status-text">Idle</span>
+    </div>
+    <div id="counts">
+      <span id="tracked-count">0</span> tracked · <span id="airborne-count">0</span> airborne
+    </div>
+    <div id="last-update">—</div>
+  </div>
+
+  <button id="start-btn">Start tracking</button>
+
+  <div id="alert-banner" class="hidden"></div>
+
+  <div id="event-card" class="hidden">
+    <div class="event-icon"></div>
+    <div class="event-body">
+      <div class="event-title"></div>
+      <div class="event-action"></div>
+      <div class="event-stats"></div>
+    </div>
+  </div>
+
+  <section id="history">
+    <header id="history-header">Recent activity</header>
+    <ol id="history-list">
+      <li class="history-empty">Nothing yet — waiting for the first event.</li>
+    </ol>
+  </section>
+
+  <aside id="panel">
+    <header id="panel-header">
+      <h1>Tracked</h1>
+      <span id="panel-count">0</span>
+    </header>
+    <ul id="celeb-list"></ul>
+  </aside>
+
+  <script type="module" src="src/app.js"></script>
+</body>
+</html>
