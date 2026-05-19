@@ -360,13 +360,11 @@ body.panel-collapsed { --panel-offset: 0px; }
   flex-direction: column;
   z-index: 900;
   backdrop-filter: blur(8px);
-  transform: translateX(0);
-  transition: right 0.32s cubic-bezier(0.2, 0.9, 0.3, 1),
-              transform 0.32s cubic-bezier(0.2, 0.9, 0.3, 1);
+  transition: right 0.32s cubic-bezier(0.2, 0.9, 0.3, 1);
 }
-/* CSS fallback (in case JS inline style doesn't apply for any reason);
-   the JS sets both right + transform inline for the actual behavior. */
-body.panel-collapsed #panel { right: -380px; transform: translateX(380px); }
+/* CSS fallback if JS doesn't run. Uses `right` only — same single
+   property the JS path uses, so the two can't compound. */
+body.panel-collapsed #panel { right: -360px; }
 
 /* Pull-tab on the panel's left edge. Slides with the panel — when the
    panel hides, the tab parks itself at the viewport right edge so the
