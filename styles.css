@@ -326,6 +326,68 @@ body.panel-collapsed { --panel-offset: 0px; }
 .plane-beam {
   filter: drop-shadow(0 0 6px rgba(88, 166, 255, 0.55));
 }
+
+/* ISS marker — purple to differentiate from celeb planes. */
+.iss-marker { pointer-events: none; }
+.iss-marker-inner {
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+  filter: drop-shadow(0 0 8px rgba(163, 113, 247, 0.85));
+  animation: issPulse 3s ease-in-out infinite;
+}
+@keyframes issPulse {
+  0%, 100% { transform: scale(1); }
+  50%      { transform: scale(1.08); }
+}
+
+/* ISS card — bottom-left HUD pill above the activity strip. */
+#iss-card {
+  position: absolute;
+  left: 12px;
+  bottom: 108px;
+  z-index: 1050;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 16px 10px 12px;
+  max-width: 360px;
+  background: linear-gradient(135deg, rgba(40, 28, 60, 0.95), rgba(13, 17, 23, 0.95));
+  border: 1px solid rgba(163, 113, 247, 0.35);
+  border-radius: 10px;
+  backdrop-filter: blur(8px);
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.45), 0 0 18px rgba(163, 113, 247, 0.15);
+}
+#iss-card.hidden { display: none; }
+#iss-card .iss-icon {
+  font-size: 26px;
+  line-height: 1;
+}
+#iss-card .iss-title {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #c8a8ff;
+  margin-bottom: 2px;
+}
+#iss-card .iss-location {
+  font-size: 11px;
+  color: #8b949e;
+  font-variant-numeric: tabular-nums;
+  margin-bottom: 2px;
+}
+#iss-card .iss-pass {
+  font-size: 12px;
+  color: #e6edf3;
+}
+#iss-card .iss-pass strong {
+  color: #c8a8ff;
+  font-weight: 600;
+}
 .plane-icon.in-zone path {
   fill: #f0883e;
 }

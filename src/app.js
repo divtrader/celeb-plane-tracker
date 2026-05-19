@@ -6,6 +6,7 @@ import { FlightStateTracker } from "./flightState.js";
 import { loadAirports, nearestAirport } from "./airports.js";
 import { lookupRoute, computeProgress } from "./routes.js";
 import { prefetchPortraits, getPortrait } from "./portraits.js";
+import { fetchPosition as fetchIssPosition, initOrbit as initIssOrbit, nextPass as nextIssPass } from "./iss.js";
 import { Voice } from "./voice.js";
 import { Chime } from "./chime.js";
 
@@ -909,6 +910,114 @@ function scheduleRender() {
   requestAnimationFrame(() => { pendingRender = false; renderPanel(); });
 }
 prefetchPortraits(CELEBRITY_TAILS, scheduleRender).then(scheduleRender);
+
+// ─── International Space Station ─────────────────────────────────────
+// Live position from wheretheiss.at, pass predictions computed locally
+// from a TLE fetched once per 12 h. Tracks Schiphol (52.31, 4.76) as the
+// observer point — same anchor as the celebrity geofence.
+const issState = { marker: null, footprint: null, position: null, nextPass: null, lastAnnouncedPass: 0 };
+const issEls = {
+  card: document.getElementById("iss-card"),
+  loc:  document.querySelector("#iss-card .iss-location"),
+  pass: document.querySelector("#iss-card .iss-pass"),
+};
+const ISS_ICON = L.divIcon({
+  className: "iss-marker",
+  html: `<div class="iss-marker-inner">🛰️</div>`,
+  iconSize: [36, 36],
+  iconAnchor: [18, 18],
+});
+const ISS_OBSERVER = { lat: AMSTERDAM_ZONE.center.lat, lon: AMSTERDAM_ZONE.center.lon };
+const ISS_PASS_ALERT_LEAD_MS = 5 * 60_000; // voice alert 5 min before peak
+
+function fmtTimeUntil(ms) {
+  const s = Math.max(0, Math.floor((ms - Date.now()) / 1000));
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  if (h > 0) return `${h}h ${m}m`;
+  if (m > 0) return `${m}m`;
+  return `${s}s`;
+}
+
+function renderIssCard() {
+  const p = issState.position;
+  if (!p) { issEls.card.classList.add("hidden"); return; }
+  issEls.card.classList.remove("hidden");
+  issEls.loc.textContent = `Over ${p.lat.toFixed(1)}°, ${p.lon.toFixed(1)}° · ${Math.round(p.altKm)} km up · ${p.visibility}`;
+  if (issState.nextPass) {
+    const np = issState.nextPass;
+    issEls.pass.innerHTML = `<strong>Next Amsterdam pass</strong> in ${fmtTimeUntil(np.peakMs)} · max ${Math.round(np.maxElevDeg)}° above horizon`;
+  } else {
+    issEls.pass.textContent = "Computing next pass…";
+  }
+}
+
+async function refreshIssPosition() {
+  try {
+    const p = await fetchIssPosition();
+    issState.position = p;
+    const latlng = [p.lat, p.lon];
+    if (!issState.marker) {
+      issState.marker = L.marker(latlng, { icon: ISS_ICON, zIndexOffset: 800 }).addTo(map);
+      issState.footprint = L.circle(latlng, {
+        radius: p.footprintKm * 1000,
+        color: "#a371f7",
+        weight: 1,
+        opacity: 0.4,
+        fillColor: "#a371f7",
+        fillOpacity: 0.04,
+        interactive: false,
+      }).addTo(map);
+    } else {
+      issState.marker.setLatLng(latlng);
+      issState.footprint.setLatLng(latlng);
+      issState.footprint.setRadius(p.footprintKm * 1000);
+    }
+    renderIssCard();
+  } catch (err) {
+    console.warn("[iss] position fetch failed:", err.message);
+  }
+}
+
+function refreshIssPass() {
+  try {
+    issState.nextPass = nextIssPass(ISS_OBSERVER.lat, ISS_OBSERVER.lon);
+    renderIssCard();
+    // Voice alert ~5 minutes before peak, if it hasn't already fired.
+    if (issState.nextPass) {
+      const peakMs = issState.nextPass.peakMs;
+      const dueMs = peakMs - ISS_PASS_ALERT_LEAD_MS;
+      const now = Date.now();
+      if (dueMs > now && peakMs !== issState.lastAnnouncedPass) {
+        const delay = dueMs - now;
+        setTimeout(() => {
+          if (issState.nextPass?.peakMs !== peakMs) return; // pass changed, skip
+          chime.zoneEntry();
+          voice.speak(
+            `Heads up — the International Space Station passes overhead Amsterdam in about 5 minutes, reaching ${Math.round(
+              issState.nextPass.maxElevDeg
+            )} degrees above the horizon.`
+          );
+          issState.lastAnnouncedPass = peakMs;
+        }, delay);
+      }
+    }
+  } catch (err) {
+    console.warn("[iss] pass calc failed:", err.message);
+  }
+}
+
+(async () => {
+  try {
+    await initIssOrbit();
+    await refreshIssPosition();
+    refreshIssPass();
+    setInterval(refreshIssPosition, 30_000);
+    setInterval(refreshIssPass, 5 * 60_000);
+  } catch (err) {
+    console.warn("[iss] init failed:", err.message);
+  }
+})();
 
 // Self-chained polling: wait POLL_INTERVAL_MS *after* the previous sweep
 // finishes. Using setInterval would let sweeps overlap when a sweep takes
