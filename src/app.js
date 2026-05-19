@@ -46,6 +46,7 @@ const els = {
   pollProgress: document.getElementById("poll-progress"),
   pollStats: document.getElementById("poll-stats"),
   panelToggle: document.getElementById("panel-toggle"),
+  panel: document.getElementById("panel"),
 };
 
 // Pull-tab collapse: slides the panel off-screen so the user sees the
@@ -54,6 +55,11 @@ const els = {
 const PANEL_COLLAPSED_KEY = "celeb-tracker.panelCollapsed";
 function applyPanelState(collapsed) {
   document.body.classList.toggle("panel-collapsed", collapsed);
+  // Belt-and-suspenders: set the transform inline too. The CSS rule
+  // body.panel-collapsed #panel { transform: translateX(100%) } *should*
+  // be enough, but on the user's tablet Chromium build it wasn't taking
+  // effect — likely a cached/parser quirk. Inline style wins regardless.
+  els.panel.style.transform = collapsed ? "translateX(100%)" : "translateX(0)";
   els.panelToggle.setAttribute("aria-label", collapsed ? "Show tracked list" : "Hide tracked list");
 }
 applyPanelState(localStorage.getItem(PANEL_COLLAPSED_KEY) === "1");
