@@ -75,15 +75,11 @@ setInterval(tickMissionTime, 1000);
 const PANEL_COLLAPSED_KEY = "celeb-tracker.panelCollapsed-v2";
 function applyPanelState(collapsed) {
   document.body.classList.toggle("panel-collapsed", collapsed);
-  // Use `right` only — setting BOTH right and transform earlier was
-  // additive, so the panel got pushed ~720 px instead of 360 and
-  // dragged the pull-tab off-screen with it. Clearing transform
-  // explicitly so any stale CSS-class transform from earlier deploys
-  // doesn't double up here either.
-  // -360 (not -380) so the 26 px pull-tab parks flush against the
-  // viewport right edge, fully visible and clickable.
-  els.panel.style.right = collapsed ? "-360px" : "0px";
-  els.panel.style.transform = "none";
+  // Strip any stale inline styles from earlier layout fixes — the v5
+  // CSS owns the slide animation via the body.panel-collapsed class,
+  // and an inline `transform: none` from before will override it.
+  els.panel.style.right = "";
+  els.panel.style.transform = "";
   els.panelToggle.setAttribute("aria-label", collapsed ? "Show tracked list" : "Hide tracked list");
 }
 // Default to collapsed — map is the hero; roster lives behind the tab.
