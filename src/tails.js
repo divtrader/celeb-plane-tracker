@@ -57,6 +57,9 @@ export const CELEBRITY_TAILS = [
   { reg: "N818TH", name: "Tommy Hilfiger",        aircraft: "Dassault Falcon 900",         descriptor: "the fashion designer",           category: "business" },
   { reg: "N737LE", name: "Len Blavatnik",         aircraft: "Boeing 737 BBJ",              descriptor: "the Warner Music owner",         category: "business" },
   { reg: "P4-BDL", name: "Roman Abramovich",      aircraft: "Boeing 787 Dreamliner",       descriptor: "the Russian oligarch",           category: "business" },
+  { reg: "D-BANN", name: "Hasso Plattner (SAP)",  aircraft: "Bombardier Challenger 300",   descriptor: "the SAP co-founder",             category: "business" },
+  { reg: "N375A",  name: "SAP corporate jet",     aircraft: "Bombardier Challenger 300",   descriptor: "SAP's US-registered Challenger", category: "business" },
+  { reg: "OE-LDM", name: "Flying Bulls DC-6B",    aircraft: "Douglas DC-6B (1958, vintage)", descriptor: "Red Bull's vintage flagship",  category: "business", wikipedia: "Red Bull" },
 
   // === Hollywood ===
   { reg: "N350XX", name: "Tom Cruise",            aircraft: "Bombardier Challenger 350",   descriptor: "the actor",                      category: "hollywood" },
@@ -88,4 +91,7 @@ export const CELEBRITY_TAILS = [
   { reg: "82-8000", icao: "ADFDF8", name: "Air Force One (VC-25A)",        aircraft: "Boeing VC-25A",                                     category: "politics" },
   { reg: "92-9000", icao: "ADFDF9", name: "Air Force One backup (VC-25A)", aircraft: "Boeing VC-25A",                                     category: "politics" },
   { reg: "N943FL", name: "Ron DeSantis",          aircraft: "Cessna Citation Latitude",    descriptor: "the Florida governor",           category: "politics" },
+  { reg: "T.22-1", name: "Spanish Royal Flight A310-I",    aircraft: "Airbus A310-304",     descriptor: "Spain's royal & PM transport",   category: "politics", wikipedia: "45th Wing" },
+  { reg: "T.22-2", name: "Spanish Royal Flight A310-II",   aircraft: "Airbus A310-304",     descriptor: "Spain's royal & PM transport",   category: "politics", wikipedia: "45th Wing" },
+  { reg: "3A-MJG", name: "Prince Albert II of Monaco",     aircraft: "Dassault Falcon 7X",  descriptor: "the Prince of Monaco",           category: "politics", wikipedia: "Albert II, Prince of Monaco" },
 ];
