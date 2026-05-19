@@ -6,7 +6,8 @@ import { FlightStateTracker } from "./flightState.js";
 import { loadAirports, nearestAirport } from "./airports.js";
 import { lookupRoute, computeProgress } from "./routes.js";
 import { prefetchPortraits, getPortrait } from "./portraits.js";
-import { fetchPosition as fetchIssPosition, initOrbit as initIssOrbit, nextPass as nextIssPass } from "./iss.js";
+import { fetchPosition as fetchIssPosition, initOrbit as initIssOrbit, allPasses as allIssPasses } from "./iss.js";
+import { loadCloudForecast, cloudCoverAt } from "./weather.js";
 import { Voice } from "./voice.js";
 import { Chime } from "./chime.js";
 
@@ -915,7 +916,13 @@ prefetchPortraits(CELEBRITY_TAILS, scheduleRender).then(scheduleRender);
 // Live position from wheretheiss.at, pass predictions computed locally
 // from a TLE fetched once per 12 h. Tracks Schiphol (52.31, 4.76) as the
 // observer point — same anchor as the celebrity geofence.
-const issState = { marker: null, footprint: null, position: null, nextPass: null, lastAnnouncedPass: 0 };
+const issState = {
+  marker: null,
+  footprint: null,
+  position: null,
+  passes: [],            // upcoming, enriched with sun + cloud info
+  announcedPeaks: new Set(), // peakMs values we've already voice-alerted for
+};
 const issEls = {
   card: document.getElementById("iss-card"),
   loc:  document.querySelector("#iss-card .iss-location"),
@@ -939,17 +946,72 @@ function fmtTimeUntil(ms) {
   return `${s}s`;
 }
 
+function fmtPassTime(ms) {
+  const d = new Date(ms);
+  const now = new Date();
+  const sameDay = d.toDateString() === now.toDateString();
+  const tomorrow = new Date(now); tomorrow.setDate(now.getDate() + 1);
+  const isTomorrow = d.toDateString() === tomorrow.toDateString();
+  const hm = d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false });
+  const day = sameDay   ? "Tonight"
+            : isTomorrow ? "Tomorrow"
+            : d.toLocaleDateString([], { weekday: "short" });
+  return `${day} ${hm}`;
+}
+
+// Classify a pass's visibility from observer's sun elevation + cloud cover.
+// Returns { icon, label, score } where score: 0 = invisible, 3 = excellent.
+function classifyPass(pass) {
+  const peakDate = new Date(pass.peakMs);
+  const sun = typeof SunCalc !== "undefined"
+    ? SunCalc.getPosition(peakDate, AMSTERDAM_ZONE.center.lat, AMSTERDAM_ZONE.center.lon)
+    : null;
+  const sunElevDeg = sun ? (sun.altitude * 180) / Math.PI : null;
+  const cloud = cloudCoverAt(pass.peakMs); // 0..100 or null
+
+  if (sunElevDeg != null && sunElevDeg > -2) {
+    return { icon: "☀️", label: "Daylight", verdict: "Not visible", score: 0, sunElevDeg, cloud };
+  }
+  if (cloud != null && cloud > 80) {
+    return { icon: "☁️", label: "Overcast",      verdict: "Hidden by clouds",  score: 0, sunElevDeg, cloud };
+  }
+  if (cloud != null && cloud > 50) {
+    return { icon: "⛅", label: "Partly cloudy", verdict: "Possibly visible",  score: 1, sunElevDeg, cloud };
+  }
+  if (pass.maxElevDeg < 20) {
+    return { icon: "🌑", label: "Low pass",      verdict: "Skims horizon",      score: 1, sunElevDeg, cloud };
+  }
+  if (sunElevDeg != null && sunElevDeg > -8) {
+    return { icon: "🌆", label: "Twilight",      verdict: "Bright pass — go look", score: 2, sunElevDeg, cloud };
+  }
+  return    { icon: "🌟", label: "Excellent",     verdict: "Clear skies — go look!", score: 3, sunElevDeg, cloud };
+}
+
 function renderIssCard() {
   const p = issState.position;
   if (!p) { issEls.card.classList.add("hidden"); return; }
   issEls.card.classList.remove("hidden");
-  issEls.loc.textContent = `Over ${p.lat.toFixed(1)}°, ${p.lon.toFixed(1)}° · ${Math.round(p.altKm)} km up · ${p.visibility}`;
-  if (issState.nextPass) {
-    const np = issState.nextPass;
-    issEls.pass.innerHTML = `<strong>Next Amsterdam pass</strong> in ${fmtTimeUntil(np.peakMs)} · max ${Math.round(np.maxElevDeg)}° above horizon`;
-  } else {
-    issEls.pass.textContent = "Computing next pass…";
+  issEls.loc.textContent =
+    `Over ${p.lat.toFixed(1)}°, ${p.lon.toFixed(1)}° · ${Math.round(p.altKm)} km up · ${p.visibility}`;
+
+  const passes = issState.passes || [];
+  if (!passes.length) {
+    issEls.pass.textContent = "Computing upcoming passes…";
+    return;
   }
+  const rows = passes.slice(0, 5).map((p) => {
+    const cls = p.visibility;
+    const cloud = cls.cloud != null ? `${Math.round(cls.cloud)}% cloud` : "—";
+    return `
+      <li class="iss-pass-row score-${cls.score}">
+        <span class="iss-pass-icon">${cls.icon}</span>
+        <span class="iss-pass-when">${fmtPassTime(p.peakMs)}</span>
+        <span class="iss-pass-elev">${Math.round(p.maxElevDeg)}°</span>
+        <span class="iss-pass-verdict">${cls.label} · ${cloud}</span>
+      </li>`;
+  }).join("");
+  issEls.pass.innerHTML =
+    `<div class="iss-pass-header">Upcoming Amsterdam passes</div><ol class="iss-pass-list">${rows}</ol>`;
 }
 
 async function refreshIssPosition() {
@@ -979,31 +1041,66 @@ async function refreshIssPosition() {
   }
 }
 
-function refreshIssPass() {
+async function refreshIssPasses() {
   try {
-    issState.nextPass = nextIssPass(ISS_OBSERVER.lat, ISS_OBSERVER.lon);
+    await loadCloudForecast(ISS_OBSERVER.lat, ISS_OBSERVER.lon);
+    const raw = allIssPasses(ISS_OBSERVER.lat, ISS_OBSERVER.lon, 0.01, Date.now(), 5);
+    issState.passes = raw.map((p) => ({ ...p, visibility: classifyPass(p) }));
     renderIssCard();
-    // Voice alert ~5 minutes before peak, if it hasn't already fired.
-    if (issState.nextPass) {
-      const peakMs = issState.nextPass.peakMs;
-      const dueMs = peakMs - ISS_PASS_ALERT_LEAD_MS;
-      const now = Date.now();
-      if (dueMs > now && peakMs !== issState.lastAnnouncedPass) {
-        const delay = dueMs - now;
-        setTimeout(() => {
-          if (issState.nextPass?.peakMs !== peakMs) return; // pass changed, skip
-          chime.zoneEntry();
-          voice.speak(
-            `Heads up — the International Space Station passes overhead Amsterdam in about 5 minutes, reaching ${Math.round(
-              issState.nextPass.maxElevDeg
-            )} degrees above the horizon.`
-          );
-          issState.lastAnnouncedPass = peakMs;
-        }, delay);
-      }
-    }
+    schedulePassAlerts();
   } catch (err) {
     console.warn("[iss] pass calc failed:", err.message);
+  }
+}
+
+// Schedule a voice + chime alert ~5 min before each *visible* pass.
+// Latched per-pass via `announcedPeaks` so a recompute doesn't re-fire
+// the same alert. We also fire a day-ahead notification at noon local
+// time for any excellent (score 3) passes happening tonight.
+function schedulePassAlerts() {
+  const now = Date.now();
+  for (const p of issState.passes) {
+    if (p.visibility.score === 0) continue; // skip non-visible
+    if (issState.announcedPeaks.has(p.peakMs)) continue;
+    const dueMs = p.peakMs - ISS_PASS_ALERT_LEAD_MS;
+    if (dueMs <= now) continue;
+    // setTimeout max delay is 2^31-1 ms (~24.8 days). Pass window is 5
+    // days so we're always safely under.
+    setTimeout(() => {
+      if (!issState.passes.some((q) => q.peakMs === p.peakMs)) return; // pass dropped
+      chime.zoneEntry();
+      const elev = Math.round(p.maxElevDeg);
+      const cloud = p.visibility.cloud != null ? ` Forecast: ${Math.round(p.visibility.cloud)}% cloud cover.` : "";
+      voice.speak(
+        `Heads up — the International Space Station passes overhead Amsterdam in about 5 minutes, reaching ${elev} degrees above the horizon.${cloud}`
+      );
+      issState.announcedPeaks.add(p.peakMs);
+    }, dueMs - now);
+    issState.announcedPeaks.add(p.peakMs);
+  }
+
+  // Day-ahead: at noon today (or now if past noon), announce tonight's
+  // best pass if it's an excellent (score 3) viewing.
+  const noon = new Date();
+  noon.setHours(12, 0, 0, 0);
+  if (noon.getTime() < now) noon.setDate(noon.getDate() + 1); // tomorrow noon
+  const horizonMs = noon.getTime() + 18 * 60 * 60_000; // 6am day after
+  const greatTonight = issState.passes.find(
+    (p) => p.visibility.score >= 2 && p.peakMs > noon.getTime() && p.peakMs < horizonMs
+  );
+  const key = greatTonight ? `day-ahead-${greatTonight.peakMs}` : null;
+  if (greatTonight && !issState.announcedPeaks.has(key)) {
+    const delay = Math.max(0, noon.getTime() - now);
+    setTimeout(() => {
+      chime.zoneEntry();
+      const elev = Math.round(greatTonight.maxElevDeg);
+      const when = new Date(greatTonight.peakMs).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false });
+      const cloud = greatTonight.visibility.cloud != null ? ` Forecast: ${Math.round(greatTonight.visibility.cloud)}% cloud cover, ${greatTonight.visibility.label.toLowerCase()}.` : "";
+      voice.speak(
+        `Tonight at ${when}, the International Space Station passes overhead Amsterdam, reaching ${elev} degrees.${cloud} Go look up.`
+      );
+    }, delay);
+    issState.announcedPeaks.add(key);
   }
 }
 
@@ -1011,9 +1108,9 @@ function refreshIssPass() {
   try {
     await initIssOrbit();
     await refreshIssPosition();
-    refreshIssPass();
+    await refreshIssPasses();
     setInterval(refreshIssPosition, 30_000);
-    setInterval(refreshIssPass, 5 * 60_000);
+    setInterval(refreshIssPasses, 30 * 60_000); // recompute passes every 30 min
   } catch (err) {
     console.warn("[iss] init failed:", err.message);
   }

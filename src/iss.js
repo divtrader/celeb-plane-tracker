@@ -63,31 +63,40 @@ export async function initOrbit() {
   ensureSatrec();
 }
 
-// Compute the next overhead pass for an observer location. A "pass"
-// here = ISS rising above PASS_MIN_ELEVATION degrees. Returns null if
-// no pass found within the next 48 hours (rare; ISS passes most
-// latitudes several times a day).
+// Compute upcoming overhead passes for an observer location. A "pass"
+// here = ISS rising above PASS_MIN_ELEVATION degrees. nextPass() is the
+// first one; allPasses() returns every pass found in the search window.
 const PASS_MIN_ELEVATION = 10; // degrees above horizon
-const SEARCH_WINDOW_MS = 48 * 60 * 60_000;
+const DEFAULT_DAYS = 5;
 const STEP_MS = 30_000; // 30s coarse step
 
 export function nextPass(observerLat, observerLon, observerAltKm = 0.01, fromMs = Date.now()) {
+  const list = allPasses(observerLat, observerLon, observerAltKm, fromMs, 2);
+  return list[0] || null;
+}
+
+export function allPasses(observerLat, observerLon, observerAltKm = 0.01, fromMs = Date.now(), days = DEFAULT_DAYS) {
   const sat = ensureSatrec();
-  if (!sat) return null;
+  if (!sat) return [];
   const obs = {
     latitude:  satellite.degreesToRadians(observerLat),
     longitude: satellite.degreesToRadians(observerLon),
     height:    observerAltKm,
   };
+  const windowMs = days * 24 * 60 * 60_000;
+  const passes = [];
 
   let inPass = false;
   let passStart = null;
   let maxElevDeg = 0;
   let maxElevAt = null;
+  let peakSat = null;
 
-  for (let t = fromMs; t < fromMs + SEARCH_WINDOW_MS; t += STEP_MS) {
-    const elevDeg = elevationAt(sat, obs, new Date(t));
-    if (elevDeg == null) continue;
+  for (let t = fromMs; t < fromMs + windowMs; t += STEP_MS) {
+    const date = new Date(t);
+    const sample = sampleAt(sat, obs, date);
+    if (!sample) continue;
+    const elevDeg = sample.elevDeg;
 
     if (elevDeg > PASS_MIN_ELEVATION) {
       if (!inPass) {
@@ -95,21 +104,43 @@ export function nextPass(observerLat, observerLon, observerAltKm = 0.01, fromMs 
         passStart = t;
         maxElevDeg = elevDeg;
         maxElevAt = t;
+        peakSat = sample;
       } else if (elevDeg > maxElevDeg) {
         maxElevDeg = elevDeg;
         maxElevAt = t;
+        peakSat = sample;
       }
     } else if (inPass) {
-      // Pass ended — return its peak details
-      return {
+      passes.push({
         startMs: passStart,
         endMs: t,
         peakMs: maxElevAt,
         maxElevDeg,
-      };
+        peakSatLat: peakSat.satLat,
+        peakSatLon: peakSat.satLon,
+      });
+      inPass = false;
+      passStart = null;
+      maxElevDeg = 0;
+      maxElevAt = null;
+      peakSat = null;
     }
   }
-  return null;
+  return passes;
+}
+
+function sampleAt(sat, obs, date) {
+  const pv = satellite.propagate(sat, date);
+  if (!pv?.position) return null;
+  const gmst = satellite.gstime(date);
+  const ecf = satellite.eciToEcf(pv.position, gmst);
+  const look = satellite.ecfToLookAngles(obs, ecf);
+  const geo = satellite.eciToGeodetic(pv.position, gmst);
+  return {
+    elevDeg: satellite.radiansToDegrees(look.elevation),
+    satLat:  satellite.radiansToDegrees(geo.latitude),
+    satLon:  satellite.radiansToDegrees(geo.longitude),
+  };
 }
 
 function elevationAt(sat, obs, date) {

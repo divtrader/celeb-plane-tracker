@@ -388,6 +388,46 @@ body.panel-collapsed { --panel-offset: 0px; }
   color: #c8a8ff;
   font-weight: 600;
 }
+
+/* Multi-pass list — up to 5 upcoming passes with visibility verdicts. */
+#iss-card { max-width: 460px; }
+.iss-pass-header {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #8b949e;
+  margin-bottom: 4px;
+}
+.iss-pass-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.iss-pass-row {
+  display: grid;
+  grid-template-columns: 20px 96px 36px 1fr;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  padding: 2px 0;
+}
+.iss-pass-icon { font-size: 13px; line-height: 1; }
+.iss-pass-when { color: #e6edf3; font-weight: 600; }
+.iss-pass-elev { color: #c8a8ff; font-weight: 600; text-align: right; }
+.iss-pass-verdict {
+  color: #8b949e;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.iss-pass-row.score-0 { opacity: 0.45; }
+.iss-pass-row.score-1 { opacity: 0.85; }
+.iss-pass-row.score-3 .iss-pass-verdict { color: #c8a8ff; }
 .plane-icon.in-zone path {
   fill: #f0883e;
 }
