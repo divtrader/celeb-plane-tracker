@@ -11,8 +11,12 @@
 const BASE = "https://api.airplanes.live/v2";
 
 export class AirplanesLiveAdapter {
-  constructor({ fetchImpl = fetch } = {}) {
-    this.fetch = fetchImpl;
+  constructor({ fetchImpl } = {}) {
+    // Native `fetch` requires `this` to be Window. Storing it as
+    // `this.fetch` and calling `this.fetch(url)` throws "Illegal
+    // invocation" because the receiver is the adapter. Wrap the global
+    // in an arrow function so the bare call is preserved.
+    this._http = fetchImpl ?? ((url, init) => fetch(url, init));
   }
 
   async fetchByRegistration(reg) {
@@ -55,7 +59,7 @@ export class AirplanesLiveAdapter {
   async _rawFetch(url) {
     let res;
     try {
-      res = await this.fetch(url, { headers: { Accept: "application/json" } });
+      res = await this._http(url, { headers: { Accept: "application/json" } });
     } catch (e) {
       const err = new Error(`network/CORS error (likely Cloudflare throttle): ${e.message}`);
       err.rateLimited = true;
