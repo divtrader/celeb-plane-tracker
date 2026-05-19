@@ -47,7 +47,25 @@ const els = {
   historyList: document.getElementById("history-list"),
   pollProgress: document.getElementById("poll-progress"),
   pollStats: document.getElementById("poll-stats"),
+  menuBtn: document.getElementById("menu-btn"),
+  menuBadge: document.getElementById("menu-badge"),
+  panel: document.getElementById("panel"),
 };
+
+// Burger menu: panel is hidden by default, slides in from the right when
+// the hamburger is clicked. Closing also works by tapping the hamburger
+// (it animates into an X while open) or pressing Escape.
+els.menuBtn.addEventListener("click", () => {
+  const isOpen = els.panel.classList.toggle("open");
+  els.menuBtn.classList.toggle("open", isOpen);
+  els.menuBtn.setAttribute("aria-expanded", String(isOpen));
+  els.menuBtn.setAttribute("aria-label", isOpen ? "Close tracked list" : "Open tracked list");
+});
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && els.panel.classList.contains("open")) {
+    els.menuBtn.click();
+  }
+});
 
 // Live per-sweep counters surfaced in the HUD. Helps debug rate-limit
 // issues and gives the kiosk something to watch between events.
@@ -252,7 +270,18 @@ function renderPanel() {
 
   els.celebList.innerHTML = html;
   const visibleAirborne = rows.filter((s) => s.phase === "cruising" || s.phase === "zone").length;
+  const anyInZone = rows.some((s) => s.phase === "zone");
   els.panelCount.textContent = `${visibleAirborne} live`;
+
+  // Sync the hamburger badge: hidden when nothing's airborne, blue with
+  // count when celebs are cruising, pulsing orange when one's in zone.
+  if (visibleAirborne === 0) {
+    els.menuBadge.classList.add("hidden");
+  } else {
+    els.menuBadge.classList.remove("hidden");
+    els.menuBadge.textContent = String(visibleAirborne);
+    els.menuBadge.classList.toggle("zone", anyInZone);
+  }
 }
 
 els.celebList.addEventListener("click", (e) => {
