@@ -552,10 +552,10 @@ async function pollLoop() {
     console.error("[pollLoop]", err);
   }
   // Longer cooldown when rate-limited so Cloudflare's bucket refills.
-  // A heavy throttle (no successes + many rate-limits) usually means the
-  // IP is in a 5–30 min Cloudflare block, so cool off for 5 min.
+  // Any rate-limit with zero successes = the IP is in a multi-minute
+  // Cloudflare block; nudging it just resets the cooldown, so wait 5 min.
   let wait = POLL_INTERVAL_MS;
-  if (sweep.rate > 5 && sweep.ok === 0) wait = 5 * 60_000;
+  if (sweep.rate > 0 && sweep.ok === 0) wait = 5 * 60_000;
   else if (sweep.rate > 0)              wait = POLL_INTERVAL_MS * 2;
   startCountdown(Math.round(wait / 1000));
   setTimeout(pollLoop, wait);
