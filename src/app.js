@@ -551,13 +551,33 @@ function renderFlightStrips(allRows) {
     } else if (takeoffAirport && ac) {
       progressBlock = `<div class="fs-route-names">From ${takeoffAirport.name} <span class="arrow">→</span> destination unknown</div>`;
     } else if (ac && typeof ac.alt === "number") {
+      // No route data, no takeoff event captured. Try to infer from
+      // the first observed position — for an oceanic crossing we'll
+      // often pick up Reykjavik / Shannon / Gander with a 300 nm
+      // radius. Otherwise just show the coordinates so the user at
+      // least knows which patch of sky we picked them up in.
+      const entry = markers.get(meta.reg.toUpperCase());
+      const firstPos = entry?.positions?.[0];
+      let originText = "";
+      if (firstPos) {
+        const [lat, lon] = firstPos;
+        const nearby = nearestAirport(lat, lon, 300);
+        if (nearby) {
+          originText = `Tracking from near ${nearby.name}`;
+        } else {
+          const latStr = `${Math.abs(lat).toFixed(1)}°${lat >= 0 ? "N" : "S"}`;
+          const lonStr = `${Math.abs(lon).toFixed(1)}°${lon >= 0 ? "E" : "W"}`;
+          originText = `First seen at ${latStr}, ${lonStr}`;
+        }
+      }
       const pctNum = Math.max(3, Math.min(100, (ac.alt / 45000) * 100));
       progressBlock = `
         <div class="fs-progress">
           <span class="fs-iata">GND</span>
           <div class="fs-progress-bar"><div class="fs-progress-fill" style="width: ${pctNum.toFixed(0)}%"></div></div>
           <span class="fs-iata">FL450</span>
-        </div>`;
+        </div>
+        ${originText ? `<div class="fs-route-names">${originText} <span class="arrow">→</span> destination unknown</div>` : ""}`;
     }
 
     const alt = ac ? (fmtAlt(ac.alt) || "—") : "—";
