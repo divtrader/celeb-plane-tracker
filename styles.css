@@ -371,6 +371,8 @@ html, body {
 #flight-strips::-webkit-scrollbar       { width: 3px; }
 #flight-strips::-webkit-scrollbar-track { background: transparent; }
 #flight-strips::-webkit-scrollbar-thumb { background: var(--green); border-radius: 2px; }
+/* smooth momentum scroll on touch */
+#flight-strips { -webkit-overflow-scrolling: touch; }
 
 .flight-strip {
   position: relative;
@@ -899,6 +901,7 @@ body:not(.panel-collapsed) #panel-toggle svg { display: block; }
 #celeb-list::-webkit-scrollbar       { width: 3px; }
 #celeb-list::-webkit-scrollbar-track { background: transparent; }
 #celeb-list::-webkit-scrollbar-thumb { background: var(--green); border-radius: 2px; }
+#celeb-list { -webkit-overflow-scrolling: touch; }
 
 /* celeb row */
 .celeb-row {
@@ -1185,6 +1188,12 @@ body:not(.panel-collapsed) #panel-toggle svg { display: block; }
   filter: brightness(0.75) saturate(0.5);
 }
 
+/* ─── Touch :active feedback (Duet has no hover) ───────────── */
+.flight-strip:active { border-color: var(--green); box-shadow: 0 0 16px rgba(0,201,167,0.12); }
+.celeb-row:active    { background: var(--panel-2); border-color: var(--green); }
+#panel-toggle:active { background: var(--panel-2); }
+.history-item:active { border-color: var(--green); background: rgba(0,201,167,0.06); }
+
 /* ─── Shared animations ─────────────────────────────────────── */
 
 @keyframes pulse-dot {
@@ -1217,10 +1226,74 @@ body:not(.panel-collapsed) #panel-toggle svg { display: block; }
 .badge-red    { background: var(--red-dim);    color: var(--red); }
 .badge-muted  { background: rgba(90,101,133,0.12); color: var(--muted); }
 
-/* ─── Responsive ────────────────────────────────────────────── */
+/* ─── Responsive — Lenovo IdeaPad Duet Chromebook (10.1", ~1280×800 effective) ── */
 
-@media (max-width: 600px) {
-  #flight-strips { width: 190px; }
-  #panel         { width: 100%; }
-  #hud           { width: 180px; font-size: 11px; }
+/*
+ * Primary target: CT-X636F — 10.1" touch tablet, ChromeOS, landscape.
+ * Effective viewport ≈ 1280×800 at ChromeOS 150% scaling.
+ * Rules: touch targets ≥ 44px, no hover-only affordances, readable at arm's length.
+ */
+
+/* ── Touch baseline: all interactive elements ≥ 44px tall ─── */
+#panel-toggle             { height: 88px; width: 36px; }
+.leaflet-control-zoom a   { width: 44px !important; height: 44px !important; line-height: 44px !important; font-size: 18px !important; }
+.celeb-row                { min-height: 56px; }
+.flight-strip             { min-height: 72px; }
+#start-btn                { padding: 16px 36px; font-size: 14px; }
+#hud-corner-tl, #hud-corner-tr,
+#hud-corner-bl, #hud-corner-br { display: none; } /* decorative only — no space on 10.1" */
+
+/* ── Header: taller for finger tapping ───────────────────────── */
+#transmission { height: 52px; }
+#flight-strips { top: 64px; }
+#event-card    { top: 64px; }
+#alert-banner  { top: 60px; }
+#demo-badge    { top: 60px; }
+
+/* ── HUD: bigger numbers, readable at arm's length ───────────── */
+#hud {
+  width: 230px;
+  padding: 14px 16px;
+}
+.hud-label { font-size: 11px; letter-spacing: 1.8px; }
+.hud-val   { font-size: 22px; }
+.hud-row-soft .hud-val { font-size: 11px; }
+.hud-line  { font-size: 10px; }
+
+/* ── Flight strips: wider, fingertip-friendly ────────────────── */
+#flight-strips { width: 260px; gap: 10px; }
+.fs-name  { font-size: 13px; }
+.fs-meta  { font-size: 10px; }
+.fs-data-val { font-size: 13px; }
+.fs-avatar { width: 34px; height: 34px; }
+
+/* ── Roster panel: full-width overlay on 10.1" ───────────────── */
+#panel { width: 380px; }
+.celeb-row { padding: 12px 14px 12px 20px; gap: 12px; }
+.row-name  { font-size: 14px; }
+.row-meta  { font-size: 11px; }
+.avatar    { width: 42px; height: 42px; }
+#panel-header h1 { font-size: 28px; }
+#celeb-list { padding: 14px 22px 24px; gap: 8px; }
+
+/* ── Event card: wider so text doesn't wrap ──────────────────── */
+#event-card { min-width: 380px; }
+.event-title { font-size: 18px; }
+
+/* ── Zoom control: push below header ─────────────────────────── */
+.leaflet-control-zoom { margin: 68px 16px 0 !important; }
+
+/* ── Scrollbars: invisible (finger scroll, no scrollbar needed) ─ */
+#flight-strips, #celeb-list {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+#flight-strips::-webkit-scrollbar,
+#celeb-list::-webkit-scrollbar { display: none; }
+
+/* ── Portrait fallback (unlikely on Duet, but safe) ─────────── */
+@media (max-width: 860px) {
+  #flight-strips { width: 220px; }
+  #panel         { width: 100vw; }
+  #event-card    { min-width: 0; width: calc(100vw - 40px); }
 }
