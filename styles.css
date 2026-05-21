@@ -62,7 +62,7 @@ html, body {
 /* ─── Map ───────────────────────────────────────────────────── */
 
 #map {
-  position: fixed;
+  position: absolute;
   inset: 0;
   z-index: 0;
 }
@@ -99,7 +99,7 @@ html, body {
 /* ─── Transmission header ───────────────────────────────────── */
 
 #transmission {
-  position: fixed;
+  position: absolute;
   top: 0; left: 0; right: 0;
   z-index: 100;
   height: 48px;
@@ -249,7 +249,7 @@ html, body {
 /* ─── HUD — bottom-left ops console ────────────────────────── */
 
 #hud {
-  position: fixed;
+  position: absolute;
   bottom: 24px;
   left: 20px;
   z-index: 80;
@@ -354,7 +354,7 @@ html, body {
 /* ─── Flight strips — right edge ───────────────────────────── */
 
 #flight-strips {
-  position: fixed;
+  position: absolute;
   top: 60px;
   right: 12px;
   bottom: 12px;
@@ -630,7 +630,7 @@ html, body {
 /* ─── Event card — top-left alert ───────────────────────────── */
 
 #event-card {
-  position: fixed;
+  position: absolute;
   top: 60px;
   left: 20px;
   z-index: 90;
@@ -739,7 +739,7 @@ html, body {
 /* ─── Alert banner (legacy) ─────────────────────────────────── */
 
 #alert-banner {
-  position: fixed;
+  position: absolute;
   top: 56px;
   left: 50%;
   transform: translateX(-50%);
@@ -760,7 +760,7 @@ html, body {
 /* ─── Start / voice-enable button ───────────────────────────── */
 
 #start-btn {
-  position: fixed;
+  position: absolute;
   bottom: 28px;
   left: 50%;
   transform: translateX(-50%);
@@ -794,7 +794,7 @@ html, body {
 /* ─── Roster panel ───────────────────────────────────────────── */
 
 #panel {
-  position: fixed;
+  position: absolute;
   top: 0;
   right: 0;
   bottom: 0;
@@ -807,7 +807,6 @@ html, body {
   flex-direction: column;
   transform: translateX(0);
   transition: transform 0.42s cubic-bezier(0.22,1,0.36,1);
-  overflow: hidden;
   box-shadow: -16px 0 48px rgba(0,0,0,0.5);
 }
 
@@ -1065,7 +1064,7 @@ body:not(.panel-collapsed) #panel-toggle svg { display: block; }
 }
 
 #demo-badge {
-  position: fixed;
+  position: absolute;
   top: 56px;
   left: 50%;
   transform: translateX(-50%);
