@@ -13,11 +13,9 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=6" />
+  <link rel="stylesheet" href="styles.css?v=7" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://unpkg.com/@joergdietrich/leaflet.terminator@1.1.0/L.Terminator.js"></script>
-  <script src="https://unpkg.com/satellite.js@5.0.0/dist/satellite.min.js"></script>
-  <script src="https://unpkg.com/suncalc@1.9.0/suncalc.js"></script>
 </head>
 <body>
   <!-- Full-canvas map -->
@@ -76,16 +74,6 @@
     </div>
   </div>
 
-  <!-- ISS mission card (floats bottom-right) -->
-  <div id="iss-card" class="hidden">
-    <div class="iss-icon">🛰️</div>
-    <div class="iss-body">
-      <div class="iss-title">International Space Station</div>
-      <div class="iss-location"></div>
-      <div class="iss-pass"></div>
-    </div>
-  </div>
-
   <!-- Legacy alert banner -->
   <div id="alert-banner" class="hidden"></div>
 
@@ -107,6 +95,6 @@
     <ul id="celeb-list"></ul>
   </aside>
 
-  <script type="module" src="src/app.js?v=3"></script>
+  <script type="module" src="src/app.js?v=4"></script>
 </body>
 </html>
