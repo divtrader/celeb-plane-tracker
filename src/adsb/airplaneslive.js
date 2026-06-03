@@ -30,11 +30,20 @@ export class AirplanesLiveAdapter {
   // Returns Map<upperReg | lowerHex, Aircraft>. Each aircraft is indexed
   // under both its registration AND its ICAO hex so callers can look up
   // by either key.
+  //
+  // Each endpoint (LADD, MIL) is independently fault-tolerant — if one
+  // fails the other still contributes its data. Only throws when BOTH fail.
   async fetchBulkSnapshot() {
-    const [ladd, mil] = await Promise.all([
+    const [laddResult, milResult] = await Promise.allSettled([
       this._fetchList(`${BASE}/ladd`),
       this._fetchList(`${BASE}/mil`),
     ]);
+
+    const bothFailed = laddResult.status === "rejected" && milResult.status === "rejected";
+    if (bothFailed) {
+      // Throw with the LADD error (first); caller decides rate-limited vs err
+      throw laddResult.reason;
+    }
 
     const byKey = new Map();
     const ingest = (list) => {
@@ -45,9 +54,19 @@ export class AirplanesLiveAdapter {
         if (ac.icao) byKey.set(ac.icao.toLowerCase(), ac);
       }
     };
-    ingest(ladd);
-    ingest(mil);
+
+    if (laddResult.status === "fulfilled") ingest(laddResult.value);
+    if (milResult.status === "fulfilled")  ingest(milResult.value);
     return byKey;
+  }
+
+  // Fetch a single registration directly (fallback when bulk returns nothing)
+  async fetchSingle(reg) {
+    try {
+      return await this._fetch(`${BASE}/reg/${encodeURIComponent(reg)}`, reg);
+    } catch {
+      return null;
+    }
   }
 
   async _fetchList(url) {
@@ -59,10 +78,19 @@ export class AirplanesLiveAdapter {
   async _rawFetch(url) {
     let res;
     try {
-      res = await this._http(url, { headers: { Accept: "application/json" } });
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 20_000); // 20s timeout
+      try {
+        res = await this._http(url, {
+          headers: { Accept: "application/json" },
+          signal: controller.signal,
+        });
+      } finally {
+        clearTimeout(timer);
+      }
     } catch (e) {
-      const err = new Error(`network/CORS error (likely Cloudflare throttle): ${e.message}`);
-      err.rateLimited = true;
+      const err = new Error(`network error: ${e.message}`);
+      err.rateLimited = false; // mark as err, not rate-limit
       throw err;
     }
     if (res.status === 429) {

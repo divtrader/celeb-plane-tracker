@@ -914,15 +914,47 @@ async function pollOnce() {
 
   let snapshot;
   let lastErrorMsg = null;
+  let bulkFailed = false;
   try {
     snapshot = await adsb.fetchBulkSnapshot();
     sweep.ok = 1;
+    // Sanity check: LADD+MIL normally returns 700+ aircraft. If we got
+    // suspiciously few, the API may be degraded — fall through to per-tail.
+    if (snapshot.size < 50) {
+      console.warn("[adsb snapshot] suspiciously small bulk result:", snapshot.size);
+      bulkFailed = true;
+    }
   } catch (err) {
     if (err.rateLimited) sweep.rate = 1;
     else sweep.err = 1;
     lastErrorMsg = err.message;
     console.warn("[adsb snapshot]", err.message);
     snapshot = new Map();
+    bulkFailed = true;
+  }
+
+  // Fallback: if bulk failed or returned nothing, fetch airborne tails
+  // individually (capped to avoid hammering the API).
+  if (bulkFailed && sweep.rate === 0) {
+    els.pollProgress.innerHTML = `<span class="reg">Bulk failed — individual lookups…</span>`;
+    const results = await Promise.allSettled(
+      CELEBRITY_TAILS.slice(0, 20).map((t) => adsb.fetchSingle(t.reg))
+    );
+    const fallbackMap = new Map();
+    results.forEach((r, i) => {
+      if (r.status === "fulfilled" && r.value) {
+        const ac = r.value;
+        const reg = CELEBRITY_TAILS[i].reg.toUpperCase();
+        fallbackMap.set(reg, ac);
+        if (ac.icao) fallbackMap.set(ac.icao.toLowerCase(), ac);
+      }
+    });
+    if (fallbackMap.size > 0) {
+      snapshot = fallbackMap;
+      sweep.ok = 1;
+      sweep.err = 0;
+      lastErrorMsg = null;
+    }
   }
 
   let airborne = 0;
