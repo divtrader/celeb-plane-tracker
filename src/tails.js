@@ -30,6 +30,7 @@ export const CELEBRITY_TAILS = [
   { reg: "N958TB", name: "Blake Shelton",         aircraft: "Gulfstream IV",               descriptor: "the country singer",             category: "music" },
   { reg: "N506AB", name: "Luke Bryan",            aircraft: "Learjet 60",                  descriptor: "the country singer",             category: "music" },
   { reg: "M-EDZE", name: "Elton John",            aircraft: "Bombardier Global Express XRS", descriptor: "the music icon",               category: "music" },
+  { reg: "N269JB", name: "Justin Bieber",         aircraft: "Cessna Citation X",           descriptor: "the pop star",                   category: "music" },
 
   // === Tech / Business ===
   { reg: "N628TS", name: "Elon Musk",             aircraft: "Gulfstream G650ER",           descriptor: "the Tesla and SpaceX CEO",       category: "tech" },
@@ -50,12 +51,19 @@ export const CELEBRITY_TAILS = [
   { reg: "N921MT", name: "Mark Cuban",            aircraft: "Bombardier Global Express",   descriptor: "the Shark Tank investor",        category: "business" },
   { reg: "N838MF", name: "Ronald Perelman",       aircraft: "Gulfstream G650",             descriptor: "the billionaire investor",       category: "business" },
   { reg: "N5MV",   name: "Michael Bloomberg",     aircraft: "Dassault Falcon 900",         descriptor: "the former New York mayor",      category: "business" },
+  { reg: "N8AG",   name: "Michael Bloomberg (2nd)", aircraft: "Dassault Falcon 900",      descriptor: "the former New York mayor",      category: "business" },
+  { reg: "N47EG",  name: "Michael Bloomberg (3rd)", aircraft: "Dassault Falcon 900",      descriptor: "the former New York mayor",      category: "business" },
   { reg: "N898NC", name: "Rupert Murdoch",        aircraft: "Gulfstream G650",             descriptor: "the media mogul",                category: "business" },
   { reg: "N221DG", name: "David Geffen",          aircraft: "Gulfstream G650",             descriptor: "the entertainment mogul",        category: "business" },
   { reg: "N1KE",   name: "Phil Knight (Nike)",    aircraft: "Gulfstream G650",             descriptor: "the Nike co-founder",            category: "business" },
+  { reg: "N6453",  name: "Nike corporate jet",    aircraft: "Gulfstream G650",             descriptor: "Nike's corporate Gulfstream",    category: "business" },
   { reg: "N1DC",   name: "Jerry Jones",           aircraft: "Gulfstream V",                descriptor: "the Dallas Cowboys owner",       category: "business" },
   { reg: "N818TH", name: "Tommy Hilfiger",        aircraft: "Dassault Falcon 900",         descriptor: "the fashion designer",           category: "business" },
   { reg: "N737LE", name: "Len Blavatnik",         aircraft: "Boeing 737 BBJ",              descriptor: "the Warner Music owner",         category: "business" },
+  { reg: "VP-BZN", name: "Richard Branson",       aircraft: "Dassault Falcon 7X",          descriptor: "the Virgin Group founder",       category: "business", wikipedia: "Richard Branson" },
+  { reg: "N96UA",  name: "Under Armour / Kevin Plank", aircraft: "Gulfstream V",           descriptor: "the Under Armour founder",       category: "business" },
+  { reg: "N10XG",  name: "Google (Alphabet)",     aircraft: "Gulfstream V",                descriptor: "Alphabet's corporate fleet",     category: "tech" },
+  { reg: "9HVID",  name: "Jensen Huang (Nvidia)", aircraft: "Bombardier Global 7500",      descriptor: "the Nvidia CEO",                 category: "tech" },
   { reg: "P4-BDL", name: "Roman Abramovich",      aircraft: "Boeing 787 Dreamliner",       descriptor: "the Russian oligarch",           category: "business" },
   { reg: "D-BANN", name: "Hasso Plattner (SAP)",  aircraft: "Bombardier Challenger 300",   descriptor: "the SAP co-founder",             category: "business" },
   { reg: "N375A",  name: "SAP corporate jet",     aircraft: "Bombardier Challenger 300",   descriptor: "SAP's US-registered Challenger", category: "business" },
@@ -78,6 +86,7 @@ export const CELEBRITY_TAILS = [
 
   // === Athletics ===
   { reg: "N236MJ", name: "Michael Jordan",        aircraft: "Gulfstream V",                descriptor: "the basketball legend",          category: "athletics" },
+  { reg: "N239MJ", name: "Michael Jordan (G550)", aircraft: "Gulfstream G550",             descriptor: "the basketball legend",          category: "athletics" },
   { reg: "N32MJ",  name: "Magic Johnson",         aircraft: "Gulfstream II",               descriptor: "the basketball legend",          category: "athletics" },
   { reg: "N517TW", name: "Tiger Woods",           aircraft: "Gulfstream V",                descriptor: "the golf legend",                category: "athletics" },
   { reg: "N151SD", name: "Floyd Mayweather",      aircraft: "Gulfstream IV",               descriptor: "the boxing champion",            category: "athletics" },
@@ -87,6 +96,9 @@ export const CELEBRITY_TAILS = [
   { reg: "LV-IRQ", name: "Lionel Messi",          aircraft: "Gulfstream V",                descriptor: "the football legend",            category: "athletics" },
   { reg: "OK-HAR", name: "Zlatan Ibrahimović",    aircraft: "Cessna Citation 560XL",       descriptor: "the football icon",              category: "athletics" },
   { reg: "N1989R", name: "Rory McIlroy",          aircraft: "Gulfstream G650ER",           descriptor: "the golfer",                     category: "athletics" },
+  { reg: "G-LCDH", name: "Lewis Hamilton",        aircraft: "Bombardier Challenger 605",   descriptor: "the Formula 1 champion",         category: "athletics", wikipedia: "Lewis Hamilton" },
+  { reg: "EI-GUG", name: "Conor McGregor",        aircraft: "Boeing 737 BBJ",              descriptor: "the MMA champion",               category: "athletics", wikipedia: "Conor McGregor" },
+  { reg: "HB-JGQ", name: "Roger Federer",         aircraft: "Dassault Falcon 900B",        descriptor: "the tennis legend",              category: "athletics", wikipedia: "Roger Federer" },
 
   // === Politics / Government ===
   { reg: "N757AF", icao: "AA3410", name: "Donald Trump (Trump Force One)", aircraft: "Boeing 757",   descriptor: "the 47th US president", category: "politics" },
